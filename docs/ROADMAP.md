@@ -31,6 +31,26 @@ a connection is available, and queues silently when it is not.
 PWA shell, Google sign-in, Firestore with offline persistence, `/users/{uid}`
 profile document, storage abstraction. See `docs/PROMPTS.md`.
 
+## Task 2 — Audio engine + tuner + Pages workflow ✅
+
+The first audio capability, and the deployment fixes that came with it.
+
+- **Audio engine** (`src/audio/`) — Web Audio microphone capture with McLeod
+  pitch detection via `pitchy`, wrapped so no other module depends on that
+  library's API. Main-thread `AnalyserNode` inside `requestAnimationFrame`,
+  throttled to ~25 Hz.
+- **Tuner panel** — live note, cents-from-pitch meter, frequency, and clarity,
+  on the Dashboard behind an explicit "Start tuner" click. Read-only: it writes
+  nothing to Firestore and touches no scheduler state.
+- **Pages workflow** — pinned the action majors that declare `node24`, added the
+  missing `configure-pages` step, and documented why the 404 needs a manual
+  settings change.
+
+This brings forward the capture and detection half of Milestone 4, ahead of the
+drills that will consume it. What is still missing there is scoring: onset
+detection, note-versus-target grading, and running detection off the main
+thread once a drill needs sample-accurate timing.
+
 ## Milestone 2 — Skill model and scheduler
 
 - Define the micro-skill taxonomy: fretting shapes, picking patterns, theory
@@ -51,12 +71,14 @@ profile document, storage abstraction. See `docs/PROMPTS.md`.
 - Session flow: warm-up, rotation, cool-down, and a summary that writes back to
   skill state.
 
-## Milestone 4 — Audio engine and pitch detection
+## Milestone 4 — Audio scoring
 
-- Microphone capture, autocorrelation or YIN pitch detection in an
-  `AudioWorklet`.
+Capture and monophonic pitch detection landed early, in Task 2. What remains:
+
 - Note and chord recognition good enough to score accuracy automatically.
 - Onset detection for picking-hand timing.
+- Move detection into an `AudioWorklet` once a drill needs sample-accurate
+  timing; `src/audio/pitchDetection.ts` is the seam for that.
 - Graceful degradation: everything from Milestone 3 keeps working when
   microphone access is denied.
 

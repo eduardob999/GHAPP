@@ -3,9 +3,9 @@
 An offline-first PWA for guitar practice — fretting-hand shapes, picking-hand
 accuracy, and theory, in short distributed sessions.
 
-This repository currently contains **Task 1: the foundation** — PWA shell,
-Google sign-in, and Firestore with offline persistence. No audio, drills, or
-scheduling yet. See [docs/ROADMAP.md](docs/ROADMAP.md).
+Current state: the **foundation** (PWA shell, Google sign-in, Firestore with
+offline persistence) plus a working **tuner** — Web Audio capture and pitch
+detection. No drills or scheduling yet. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Quick start
 
@@ -102,14 +102,48 @@ src/
   auth.ts                     Google sign-in, sign-out, error messages
   types.ts                    UserProfile and snapshot shapes
   storage/userState.ts        The only module that knows the Firestore layout
-  hooks/                      useAuthUser, useUserProfile, useOnlineStatus
-  components/                 SignInScreen, Dashboard, SyncBadge, SetupNotice…
+  audio/notes.ts              Frequency ↔ note maths, cents, in-tune tolerance
+  audio/pitchDetection.ts     The only module that imports `pitchy`
+  audio/audioEngine.ts        Microphone capture and the analysis loop
+  hooks/                      useAuthUser, useUserProfile, useOnlineStatus,
+                              usePitchDetector
+  components/                 SignInScreen, Dashboard, TunerPanel, SyncBadge…
 docs/                         Roadmap and task log
 ```
 
-The rule worth keeping: **components never import `db` directly.** All
-Firestore access goes through `src/storage/`, so the upcoming
-`/users/{uid}/skills` and `/users/{uid}/sessions` collections land in one file.
+Two rules worth keeping:
+
+- **Components never import `db` directly.** All Firestore access goes through
+  `src/storage/`, so the upcoming `/users/{uid}/skills` and
+  `/users/{uid}/sessions` collections land in one file.
+- **Nothing outside `src/audio/` imports `pitchy`.** Swapping the detector, or
+  moving it into an AudioWorklet, stays a one-file change.
+
+## The tuner
+
+Open the Dashboard and press **Start tuner**. The browser asks for microphone
+access on first use; audio is analysed on-device and never leaves it.
+
+Some notes on how it works, since the settings are not obvious:
+
+- **Browser voice processing is switched off** (`echoCancellation`,
+  `noiseSuppression`, `autoGainControl`). Those are tuned for speech — AGC pumps
+  the level of a decaying string and noise suppression gates a sustained note as
+  stationary noise. Leaving them on visibly wrecks detection.
+- **Detection runs on the main thread**, an `AnalyserNode` read inside
+  `requestAnimationFrame` throttled to ~25 Hz. That is far cheaper than it
+  sounds, needs no separate worklet module to precache, and rAF stops on its own
+  when the tab is hidden. `src/audio/pitchDetection.ts` is the seam if this ever
+  needs to become an AudioWorklet.
+- **Readings are median-filtered** over 5 samples. A pick attack regularly
+  produces one octave-up outlier; a median drops it, where a mean would fold it
+  in.
+- **Requires a secure context.** `localhost` and `https` are fine. Serving the
+  dev server on a LAN IP over plain http means no microphone at all — the tuner
+  reports that specific case rather than a generic failure.
+
+The tuner is read-only for now: it writes nothing to Firestore and touches no
+scheduler state.
 
 ## Data model
 
@@ -135,6 +169,12 @@ and let `onSnapshot` drive the UI.
 ## Deploying to GitHub Pages
 
 `.github/workflows/deploy.yml` builds and publishes on every push to `main`.
+
+Step 1 is not optional, and no workflow change can substitute for it. If it is
+skipped, `deploy-pages` fails with `Failed to create deployment (status: 404)`.
+The `enablement: true` input on `configure-pages` does not help here: its own
+docs require a token other than `GITHUB_TOKEN` (a PAT with `repo` scope, or a
+GitHub App with `administration:write`).
 
 1. **Settings → Pages → Source → GitHub Actions**.
 2. **Settings → Secrets and variables → Actions**: add the `VITE_FIREBASE_*`

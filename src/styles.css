@@ -330,6 +330,102 @@ code {
   color: var(--text-muted);
 }
 
+/* Tuner ------------------------------------------------------------------- */
+
+.tuner {
+  margin-bottom: 16px;
+  padding: 20px 0;
+  text-align: center;
+}
+
+.tuner__note {
+  font-size: 3.5rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  transition: color 0.15s ease;
+}
+
+.tuner__note--in-tune {
+  color: var(--ok);
+}
+
+.tuner__cents {
+  margin-top: 6px;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tuner__meter {
+  position: relative;
+  height: 12px;
+  margin: 16px 0 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 18%, transparent);
+  overflow: hidden;
+}
+
+/* The in-tune window, drawn to scale: ±10 of ±50 cents is a fifth of the bar. */
+.tuner__meter-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 40%;
+  width: 20%;
+  background: color-mix(in srgb, var(--ok) 22%, transparent);
+}
+
+.tuner__meter-centre {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: var(--text-muted);
+}
+
+.tuner__needle {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 4px;
+  border-radius: 999px;
+  transform: translateX(-50%);
+  background: var(--accent);
+  transition: left 0.08s linear;
+}
+
+.tuner__needle--in-tune {
+  background: var(--ok);
+}
+
+.tuner__hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.levelbar {
+  display: inline-block;
+  width: 60px;
+  height: 6px;
+  margin-right: 8px;
+  vertical-align: middle;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 22%, transparent);
+  overflow: hidden;
+}
+
+.levelbar__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.1s linear;
+}
+
 /* Data list --------------------------------------------------------------- */
 
 .datalist {

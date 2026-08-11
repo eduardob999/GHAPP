@@ -1,5 +1,19 @@
 name: Deploy to GitHub Pages
 
+# ─── One-time manual setup, which no workflow can do for you ──────────────────
+#
+# Go to  Settings → Pages → Build and deployment → Source: **GitHub Actions**.
+#
+# Until that is set, `actions/deploy-pages` fails with:
+#   Error: Failed to create deployment (status: 404)
+#   Ensure GitHub Pages has been enabled: .../settings/pages
+#
+# The `enablement: true` input on actions/configure-pages does NOT solve this
+# with the default token. Its own documentation says the option "requires a
+# token other than GITHUB_TOKEN" — a PAT with `repo` scope, or a GitHub App with
+# `administration:write`. There is a commented-out example on the step below if
+# you would rather grant a PAT than click through the settings once.
+
 on:
   push:
     branches: [main]
@@ -15,16 +29,40 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+env:
+  # Opt in to the Node 24 runner for JavaScript actions. Every action pinned
+  # below already declares `runs.using: node24`, so today this changes nothing;
+  # it is here so the build stays quiet if a transitive action still targets
+  # node20 before the June 2026 cutover.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # These majors are what actually silences the "Node.js 20 is deprecated"
+      # warnings: v4/v3 of these actions declare `runs.using: node20`, whereas
+      # the versions below declare node24.
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
+
+      - uses: actions/configure-pages@v6
+        # Not strictly required here — vite.config.ts uses a relative `base`, so
+        # the build does not consume this step's base_url/base_path outputs. It
+        # is kept because it is the documented Pages flow and would matter if the
+        # base ever became absolute.
+        #
+        # continue-on-error because this step also 404s when Pages has not been
+        # enabled yet; letting it through keeps the artifact building and leaves
+        # deploy-pages to report the real, clearer error.
+        continue-on-error: true
+        # with:
+        #   enablement: true
+        #   token: ${{ secrets.PAGES_ADMIN_TOKEN }}
 
       - run: npm ci
 
@@ -39,16 +77,23 @@ jobs:
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
 
-      - uses: actions/upload-pages-artifact@v3
+      # v5 pairs with deploy-pages@v5; it wraps upload-artifact@v7 internally.
+      # Mixing an older artifact major with a newer deploy major does not work.
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    # Job-level permissions replace the workflow-level block for this job. The
+    # deploy job never checks out the repo, so it does not need contents: read.
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
