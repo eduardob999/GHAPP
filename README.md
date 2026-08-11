@@ -1,0 +1,160 @@
+# Guitar Practice Companion
+
+An offline-first PWA for guitar practice — fretting-hand shapes, picking-hand
+accuracy, and theory, in short distributed sessions.
+
+This repository currently contains **Task 1: the foundation** — PWA shell,
+Google sign-in, and Firestore with offline persistence. No audio, drills, or
+scheduling yet. See [docs/ROADMAP.md](docs/ROADMAP.md).
+
+## Quick start
+
+```bash
+npm install
+```
+
+```bash
+npm run dev
+```
+
+The dev server prints a URL (default <http://localhost:5173>). Until Firebase is
+configured, the app shows a setup card instead of the sign-in screen — that is
+expected.
+
+## Firebase setup
+
+Everything below happens once, in the [Firebase console](https://console.firebase.google.com).
+
+1. **Create a project**, then add a **Web app** to it.
+2. **Authentication → Sign-in method →** enable **Google**. That is the only
+   provider this app uses.
+3. **Authentication → Settings → Authorized domains →** add `localhost` (usually
+   present already) and your GitHub Pages host, e.g. `yourname.github.io`.
+   Sign-in fails with `auth/unauthorized-domain` if you skip this.
+4. **Firestore Database →** create a database.
+5. **Firestore Database → Rules →** paste the contents of
+   [`firestore.rules`](firestore.rules) and publish. The defaults from the
+   console either lock you out entirely or leave your data world-readable.
+6. Copy your config values into `.env.local`:
+
+```bash
+cp .env.example .env.local
+```
+
+Fill in the `VITE_FIREBASE_*` values from **Project settings → General → Your
+apps → SDK setup and configuration**, then restart the dev server.
+
+Alternatively, edit the literals directly in `src/firebaseConfig.ts` (created
+automatically from `src/firebaseConfig.example.ts` on first run, and gitignored).
+
+> Firebase web config is **not secret** — it ships in every client bundle by
+> design. What protects your data is `firestore.rules`, which scopes every
+> document to the signed-in user's uid.
+
+## Commands
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Dev server with hot reload. The service worker is *not* registered here. |
+| `npm run build` | Typecheck, then build to `dist/`. Injects the precache manifest into the service worker. |
+| `npm run preview` | Serve `dist/` locally — the only way to exercise the PWA behaviour. |
+| `npm run typecheck` | TypeScript only. |
+| `npm run icons` | Regenerate the placeholder icons in `public/icons`. |
+
+## Verifying offline behaviour
+
+The service worker only runs in production builds:
+
+```bash
+npm run build && npm run preview
+```
+
+Then, in the preview tab:
+
+- **App shell** — load once, stop the preview server, reload. The app still
+  boots from the service worker cache.
+- **Firestore reads** — sign in, then go offline (DevTools → Network → Offline).
+  The profile card still renders, and the badge reads "Offline — from cache".
+- **Firestore writes** — while offline, press **Write a test ping** a few times.
+  The counter moves immediately and the badge turns amber ("Saved locally,
+  syncing…"). Go back online and it settles to "Synced" without a reload.
+- **Install** — DevTools → Application → Manifest → Install, or the browser's
+  install affordance.
+
+Note that DevTools' offline toggle does not always apply to the service worker's
+own network calls. Stopping the server is the honest test.
+
+## Project layout
+
+```
+index.html                    App shell markup
+vite.config.ts                Build config + the service worker precache plugin
+firestore.rules               Security rules — publish these
+public/
+  manifest.webmanifest        PWA manifest
+  service-worker.js           App-shell caching
+  icons/                      Generated placeholder icons
+src/
+  main.tsx                    Entry point; mounts React, registers the worker
+  App.tsx                     Auth-state routing: setup / splash / sign-in / dashboard
+  firebase.ts                 SDK init, auth + Firestore instances, persistence
+  firebaseConfig.example.ts   Template for the gitignored firebaseConfig.ts
+  auth.ts                     Google sign-in, sign-out, error messages
+  types.ts                    UserProfile and snapshot shapes
+  storage/userState.ts        The only module that knows the Firestore layout
+  hooks/                      useAuthUser, useUserProfile, useOnlineStatus
+  components/                 SignInScreen, Dashboard, SyncBadge, SetupNotice…
+docs/                         Roadmap and task log
+```
+
+The rule worth keeping: **components never import `db` directly.** All
+Firestore access goes through `src/storage/`, so the upcoming
+`/users/{uid}/skills` and `/users/{uid}/sessions` collections land in one file.
+
+## Data model
+
+```
+/users/{uid}
+  uid, displayName, email, photoURL
+  createdAt      server timestamp, written once
+  lastLoginAt    server timestamp, refreshed on each sign-in
+  practicePings  demo counter, proves offline writes queue and sync
+```
+
+Everything is keyed by the Firebase `uid`, so signing into the same Google
+account on another device restores the same state.
+
+### Awaiting writes
+
+While offline, Firestore applies a write to the local cache immediately but does
+not settle the returned promise until the server acknowledges it. `await
+setDoc(...)` therefore hangs, without an error, until the network returns. Treat
+those promises as *"the server confirmed it"*, never as *"the write happened"*,
+and let `onSnapshot` drive the UI.
+
+## Deploying to GitHub Pages
+
+`.github/workflows/deploy.yml` builds and publishes on every push to `main`.
+
+1. **Settings → Pages → Source → GitHub Actions**.
+2. **Settings → Secrets and variables → Actions**: add the `VITE_FIREBASE_*`
+   values as repository secrets, matching the names in `.env.example`.
+3. Add your Pages domain to Firebase's authorised domains (step 3 above).
+
+The build uses a relative `base`, so it works from a project sub-path
+(`/GHAPP/`) or a user site without changes.
+
+### Redirect sign-in and third-party cookies
+
+Sign-in uses a popup, falling back to a full-page redirect where popups are
+blocked. The redirect path depends on storage for your `authDomain`
+(`*.firebaseapp.com`), which some browsers restrict when the app is served from
+a different origin such as `github.io`. If you hit this, either stay on the
+popup path or point `authDomain` at a custom domain you also serve the app from.
+
+## Icons
+
+`public/icons/*` are generated placeholders — a stylised fretboard, drawn by
+`scripts/generate-icons.mjs` so no binaries live in git. Replace them with real
+artwork at the same filenames and sizes (192, 512, maskable 512, and a 180
+apple-touch-icon), or edit the drawing and run `npm run icons`.
