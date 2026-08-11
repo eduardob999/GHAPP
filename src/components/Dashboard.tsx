@@ -6,6 +6,7 @@ import { persistenceStatus } from '../firebase';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { recordPracticePing } from '../storage/userState';
+import { PracticePanel } from './PracticePanel';
 import { SyncBadge } from './SyncBadge';
 import { TunerPanel } from './TunerPanel';
 
@@ -80,17 +81,7 @@ export function Dashboard({ user }: DashboardProps) {
       </header>
 
       <main className="content">
-        <section className="card">
-          <div className="card__header">
-            <h2 className="card__title">Practice Dashboard</h2>
-            <span className="pill">coming soon</span>
-          </div>
-          <p className="card__body">
-            This is where your daily rotation will live — CAGED shapes for the fretting hand,
-            string-accuracy drills for the picking hand, and a spaced scheduler deciding what you
-            see today.
-          </p>
-        </section>
+        <PracticePanel user={user} />
 
         <TunerPanel />
 

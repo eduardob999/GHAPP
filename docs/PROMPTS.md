@@ -95,7 +95,7 @@ GITHUB_TOKEN", so with the default token it cannot enable Pages. Setting
 **Settings → Pages → Source: GitHub Actions** by hand is the fix for the 404;
 the workflow cannot do it.
 
-**How it was tested.** The note maths and detector wrapper were exercised
+**How Task 2 was tested.** The note maths and detector wrapper were exercised
 directly under Node against harmonic-rich synthetic tones — all six open strings
 in standard tuning resolved to the correct note with sub-0.01 Hz error, a 445 Hz
 input read as A4 +20 cents, and silence, white noise and out-of-range tones all
@@ -104,3 +104,78 @@ generated WAV fed in through `--use-file-for-fake-audio-capture`: a 110 Hz tone
 displayed "A2 / 0 cents / 110.0 Hz / In tune", a 112 Hz tone displayed "A2 / +31
 cents / Sharp — tune down", and denying the microphone produced the friendly
 error with the button reset rather than a stuck spinner.
+
+## Task 3: Skill model + spaced-practice scheduler + Today's Session
+
+**Goal.** Give the app a practice brain. Define what a micro-skill is, decide
+when each one should come back, choose a handful to do right now, and let the
+user grade them by hand. Grading is manual on purpose — audio-based scoring of
+drills is a later milestone, so a practice item is a sentence to read, play, and
+mark Easy/Good/Hard/Fail.
+
+**Key components.**
+
+- **Skill model** (`src/domain/skills.ts`) — `MicroSkillDefinition` as a union
+  discriminated on `category`, so narrowing a definition also narrows its
+  `family` and `metadata`. Ships a seed catalog of 41 skills: CAGED shapes, open
+  chords, barre chords, power chords, scale patterns, single-string and
+  string-set picking, fingerstyle, progressions, intervals and scale-over-chord
+  tasks. Static and bundled — it costs no Firestore reads and works offline from
+  first launch. Only per-user state crosses the network.
+- **Firestore skills collection** (`src/storage/skillsState.ts`) —
+  `/users/{uid}/skills/{skillId}`, subscribed with `orderBy('dueAt')` and written
+  with `setDoc(..., { merge: true })`. `totalReps` uses `increment()` so two
+  devices practising offline both count on reconnect. The Task 1 security rules
+  already cover this via their `{document=**}` wildcard; no rules change.
+- **Scheduler** (`src/domain/scheduler.ts`) — SM-2 in spirit: an ease factor
+  drifting with each grade, multiplying an interval. Pure, with `now` injected.
+- **Session planner** (`src/domain/sessionPlanner.ts`) — due-first (most overdue
+  leading), topped up with unseen beginner material, capped per family, then
+  round-robin interleaved.
+- **Today's Session UI** (`src/components/PracticePanel.tsx`) — the plan is
+  computed once and frozen for the sitting rather than recomputed from live
+  state, so a graded card stays put and reports when it will return instead of
+  vanishing the instant it is graded.
+- **Pages workflow comments** — spelled out which 404s are expected before Pages
+  is enabled and which are real. See "Deployment / GitHub Pages" in the roadmap.
+
+**Two design decisions worth recording.**
+
+*Client timestamps for `dueAt`.* `serverTimestamp()` reads back as null from the
+local cache until the server confirms it. A null `dueAt` would make every graded
+skill invisible to the planner until the network returned — precisely when
+offline practice needs to keep working. `dueAt` and `lastPracticedAt` are
+therefore written as concrete `Timestamp.fromDate(...)` values; `createdAt` and
+`updatedAt` stay server timestamps because nothing schedules on them, and reads
+use `{ serverTimestamps: 'estimate' }` so they are not blank offline either.
+
+*Interleaving is separate from capping.* The per-family cap was implemented
+first, and testing showed it produced sessions ordered "four open chords, four
+power chords, two picking tasks" — the cap limits how many a family contributes
+but not where they land, which is blocked practice wearing a rota's clothing. A
+round-robin pass now spreads families across the running order while preserving
+priority within each.
+
+**How it was tested.** The domain layer was bundled with esbuild and exercised
+under Node across 46 assertions: catalog integrity (unique ids, all categories
+and 11 families present); scheduler determinism and non-mutation of its input;
+easy/good/hard/fail producing strictly decreasing intervals; a five-rep easy
+streak growing 1.33 → 3.72 → 10.97 → 34.01 → 110.53 days with ease capped at
+3.5; a fail streak always returning within 0.1 days with ease floored at 1.3;
+same-sitting double-taps unable to inflate an interval while a fail still pulls
+it back; and for the planner — determinism, due-before-new ordering, most
+overdue first, the family cap holding under pressure, inactive skills excluded,
+a practised skill with no `dueAt` still surfacing, an empty plan when everything
+is caught up, and no two adjacent items sharing a family. That the bundle
+contains zero Firebase runtime references confirms the domain layer depends on
+Firestore for types only.
+
+The UI was then driven end to end in headless Chrome with the storage layer
+swapped for an in-memory double that keeps the real scheduler, covering session
+composition, family interleaving surviving into the rendered order, grading
+writing through with the correct `current` state, fail scheduling sooner than
+easy, session completion, and re-planning skipping what was just scheduled.
+
+Not verified: live Firestore. The emulator needs a JVM that is not installed
+here, so the round trip through `/users/{uid}/skills/{skillId}` — and the
+cross-device sync that depends on it — has only been reasoned about, not run.

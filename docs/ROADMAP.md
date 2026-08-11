@@ -51,6 +51,29 @@ drills that will consume it. What is still missing there is scoring: onset
 detection, note-versus-target grading, and running detection off the main
 thread once a drill needs sample-accurate timing.
 
+## Task 3 — Skill model + scheduler + Today's Session ✅
+
+The practice brain, which is what Milestone 2 was about.
+
+- **Skill catalog** (`src/domain/skills.ts`) — 41 micro-skills across fretting,
+  picking and theory, each small enough to practise in 20–60 seconds. Static and
+  bundled, so it costs no reads and works from the first offline launch.
+- **Scheduler** (`src/domain/scheduler.ts`) — SM-2-inspired ease and interval,
+  pure and deterministic with `now` injected.
+- **Session planner** (`src/domain/sessionPlanner.ts`) — due-first selection,
+  capped per family, then round-robin interleaved so no two adjacent items share
+  a family.
+- **Practice state** at `/users/{uid}/skills/{skillId}`, via
+  `src/storage/skillsState.ts`. Covered by the existing security rules with no
+  change, thanks to the `{document=**}` wildcard from Task 1.
+- **Today's Session UI** — manual Easy/Good/Hard/Fail grading on the Dashboard,
+  alongside the tuner.
+- **Pages workflow** — documented exactly which 404s are expected before Pages
+  is enabled, and which are real.
+
+Still open from Milestone 2: a session log (`/users/{uid}/sessions`) so history
+survives changes to the algorithm.
+
 ## Milestone 2 — Skill model and scheduler
 
 - Define the micro-skill taxonomy: fretting shapes, picking patterns, theory
@@ -96,6 +119,27 @@ Capture and monophonic pitch detection landed early, in Task 2. What remains:
 - Accessibility pass: keyboard-only practice, screen reader labels, reduced
   motion.
 - Left-handed and alternate tunings.
+
+## Deployment / GitHub Pages
+
+The workflow cannot enable Pages for you, and it does not try.
+
+1. **Settings → Pages → Build and deployment → Source: GitHub Actions.**
+2. Add the `VITE_FIREBASE_*` values as repository secrets.
+3. Add the Pages domain to Firebase's authorised domains.
+
+Until step 1 is done, every run shows two 404s even though the build itself
+succeeds and uploads its artifact:
+
+- `actions/configure-pages` — `HttpError: Not Found` on
+  `GET /repos/OWNER/REPO/pages`. Allowed to fail via `continue-on-error`.
+- `actions/deploy-pages` — `Failed to create deployment (status: 404) … Ensure
+  GitHub Pages has been enabled`. Not suppressed, because after enablement a
+  failure here is real.
+
+Both come from the same cause: the Pages REST endpoints 404 while no Pages site
+exists. `enablement: true` on `configure-pages` cannot fix it — that input needs
+a PAT or GitHub App with Pages admin rights, which `GITHUB_TOKEN` is not.
 
 ## Constraints that shape the design
 
