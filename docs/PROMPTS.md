@@ -377,3 +377,32 @@ sub-paths — and the exact command.
 UI steps to the header comment, and a final `Show deployed URL` step that runs
 with `if: always()` and prints whether the run actually published — the
 counterweight to `continue-on-error` making a non-publishing run look green.
+
+### Post-deploy fix: blank page when secrets are missing
+
+The first real deployment came up as a blank white page. Cause was a bug in the
+Task 1 config loader, not the deployment.
+
+GitHub Actions substitutes an **empty string** for a secret that does not exist,
+so `env.VITE_FIREBASE_API_KEY ?? 'YOUR_API_KEY'` produced `''` in CI — `??`
+falls back only on null/undefined. Firebase rejects a blank key with
+`auth/invalid-api-key`, thrown from `getAuth()` at module scope in
+`src/firebase.ts`, i.e. while the module graph is still being imported. React
+never mounted, so the `isFirebaseConfigured` guard in `App.tsx` never ran and
+the setup card could not appear. `isFirebaseConfigured` was also wrong in the
+same scenario: `''.startsWith('YOUR_')` is false, so a blank key read as
+"configured".
+
+Local testing missed it because the variables are *absent* locally, where `??`
+behaves as intended — only CI produces the empty-string case.
+
+Fixed in three places:
+- `firebaseConfig.example.ts` — an `envOr` helper treats blank as absent.
+- `isFirebaseConfigured` — also requires a non-blank key.
+- `firebase.ts` — when unconfigured, hands the SDK a syntactically valid
+  placeholder so importing the module cannot throw, and the app survives to
+  explain itself.
+
+Verified both ways on a clean browser profile: built with empty env vars the app
+shows "Finish the Firebase setup" with no exceptions; built with populated ones
+it reaches the sign-in screen with no exceptions.

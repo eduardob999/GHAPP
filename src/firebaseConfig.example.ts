@@ -23,17 +23,34 @@
 
 const env = import.meta.env;
 
+/**
+ * Reads an environment variable, treating blank as absent.
+ *
+ * `??` is not enough here. GitHub Actions substitutes an **empty string** for a
+ * secret that does not exist, so `env.VITE_FIREBASE_API_KEY ?? 'YOUR_API_KEY'`
+ * happily yields `''` in CI. Firebase then rejects that at import time with
+ * `auth/invalid-api-key`, which throws before React mounts and leaves a blank
+ * white page instead of the setup card below.
+ */
+function envOr(value: string | undefined, fallback: string): string {
+  return value !== undefined && value.trim() !== '' ? value : fallback;
+}
+
 export const firebaseConfig = {
-  apiKey: env.VITE_FIREBASE_API_KEY ?? 'YOUR_API_KEY',
-  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN ?? 'YOUR_PROJECT.firebaseapp.com',
-  projectId: env.VITE_FIREBASE_PROJECT_ID ?? 'YOUR_PROJECT_ID',
-  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET ?? 'YOUR_PROJECT.appspot.com',
-  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? 'YOUR_SENDER_ID',
-  appId: env.VITE_FIREBASE_APP_ID ?? 'YOUR_APP_ID',
+  apiKey: envOr(env.VITE_FIREBASE_API_KEY, 'YOUR_API_KEY'),
+  authDomain: envOr(env.VITE_FIREBASE_AUTH_DOMAIN, 'YOUR_PROJECT.firebaseapp.com'),
+  projectId: envOr(env.VITE_FIREBASE_PROJECT_ID, 'YOUR_PROJECT_ID'),
+  storageBucket: envOr(env.VITE_FIREBASE_STORAGE_BUCKET, 'YOUR_PROJECT.appspot.com'),
+  messagingSenderId: envOr(env.VITE_FIREBASE_MESSAGING_SENDER_ID, 'YOUR_SENDER_ID'),
+  appId: envOr(env.VITE_FIREBASE_APP_ID, 'YOUR_APP_ID'),
 };
 
 /**
  * Lets the UI show a "finish your Firebase setup" card instead of letting the
  * SDK throw an opaque `auth/invalid-api-key` at first sign-in.
+ *
+ * The emptiness check matters as much as the placeholder one: a blank key is
+ * "not configured" too, and must not be mistaken for a real one.
  */
-export const isFirebaseConfigured = !firebaseConfig.apiKey.startsWith('YOUR_');
+export const isFirebaseConfigured =
+  firebaseConfig.apiKey.trim() !== '' && !firebaseConfig.apiKey.startsWith('YOUR_');

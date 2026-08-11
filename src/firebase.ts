@@ -10,7 +10,26 @@ import { firebaseConfig, isFirebaseConfigured } from './firebaseConfig';
 
 export { isFirebaseConfigured };
 
-export const app: FirebaseApp = initializeApp(firebaseConfig);
+/**
+ * Stand-in used when the real config is missing.
+ *
+ * `getAuth()` throws `auth/invalid-api-key` on a blank key, and it runs at
+ * module scope — so the throw happens while this file is still being imported,
+ * before `App` gets a chance to check `isFirebaseConfigured` and render the
+ * setup card. The result is a blank page with a stack trace in the console
+ * rather than an explanation. Handing the SDK something syntactically valid
+ * keeps the app alive long enough to say what is wrong.
+ */
+const NOT_CONFIGURED = {
+  apiKey: 'not-configured',
+  authDomain: 'not-configured.firebaseapp.com',
+  projectId: 'not-configured',
+  appId: 'not-configured',
+};
+
+export const app: FirebaseApp = initializeApp(
+  isFirebaseConfigured ? firebaseConfig : NOT_CONFIGURED,
+);
 
 export const auth: Auth = getAuth(app);
 
