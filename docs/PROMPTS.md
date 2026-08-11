@@ -257,3 +257,123 @@ also confirmed to run at the same time without interfering.
 
 Not verified: a real guitar through a real microphone. Synthetic tones are
 cleaner than a pickup, so expect lower clarity values in practice.
+
+## Task 5: CAGED & chord-shape fretting trainer
+
+**Goal.** Give the fretting hand its own trainer: real chord diagrams for CAGED
+shapes, open chords, barres and power chords, practised in short timed reps and
+graded by hand. Visual only — no chord audio grading yet. The Pages workflow was
+left exactly as Task 4 set it.
+
+**Key components.**
+
+- **Enriched fretting metadata** (`src/domain/skills.ts`) — `FingerPosition`
+  plus optional `fingers`, `mutedStrings`, `lowestFret` and `highestFret` on
+  `FrettingMetadata`, filled in for 20 shapes across all four diagram families.
+  Every field is optional, so existing entries, types and exported arrays are
+  unchanged; `scale_pattern` skills carry no diagram and are excluded from the
+  trainer rather than being drawn badly.
+- **`src/domain/shapeTrainer.ts`** — pure selection and description helpers:
+  `trainableShapes`, `toDiagram`, `nextShape`, `describeShape`, `shapeToTab`.
+  No React, no Firestore; the esbuild bundle contains zero Firebase references.
+- **`src/components/FretboardDiagram.tsx`** — inline SVG chord charts. Vertical
+  neck, low E on the left, nut when the shape is open and an "Nfr" position
+  label when it is not. Barre notes at the same fret collapse into one bar, and
+  the root is marked — a filled accent dot normally, a ring when it sits under a
+  barre and has no dot of its own. Muted and open markers are drawn as shapes
+  rather than typed as ✕/○ glyphs, for the same font-independence reason Task 2
+  and Task 4 avoided emoji.
+- **`src/components/ShapeTrainerPanel.tsx`** — shape picker grouped by family,
+  diagram, rep-length choice, countdown, grading, and "next shape".
+- **Dashboard + PracticePanel hand-off** — Dashboard owns a `trainerSkillId`;
+  `PracticePanel` gained one optional `onOpenInTrainer` prop and renders a link
+  only on cards whose skill has a diagram.
+
+**Design decisions worth recording.**
+
+*One practice record, two doors.* The trainer calls the same
+`upsertSkillPracticeState` as Today's Session. A timed rep is just another
+spaced-practice observation, so ease, interval, `dueAt` and `lastResult` move
+exactly as they do from a session card. No new collection, no rules change, no
+second scheduler.
+
+*Deadline-based countdown.* The timer computes its remaining seconds from a
+wall-clock deadline rather than counting `setInterval` ticks. Background tabs
+throttle timers, and a tick-counting rep would silently run long. The test
+exercises this by accelerating `Date.now` in the page, which drives the real
+auto-advance path rather than a shortcut.
+
+**How it was tested.** The catalog was sounded out programmatically: for each of
+the 20 shapes, the sounding pitch of every unmuted string was computed and
+checked against the title — correct chord quality (major `[0,4,7]`, minor
+`[0,3,7]`, power `[0,7]`), root in the bass, every fret inside the drawn window,
+and a hand span of at most four frets. All 20 passed, and the derived tab
+notation matches standard chord charts (`x-3-2-0-1-0` for open C,
+`5-7-7-6-5-5` for the E-shape barre at the 5th).
+
+The domain helpers were then bundled and exercised under Node: only fretting
+shapes are trainable, all four diagram families are present, scale patterns and
+picking skills are excluded, ordering is deterministic and easiest-first, every
+diagram is well formed with no muted-and-fretted conflicts, and `nextShape`
+prioritises overdue over new over scheduled while skipping the current shape.
+The Task 3 planner was re-checked against the enriched catalog and is unchanged.
+
+The UI was driven in headless Chrome with storage stubbed: diagram rendering per
+family, barre and nut and position-label variants, the countdown decrementing
+and auto-advancing on its deadline, grading writing the right skill and result
+through the real scheduler and reporting when the shape returns, and the
+Today's-Session hand-off selecting the requested shape. Offline: with the
+preview server killed and the page reloaded from cache, the trainer rendered,
+the diagram drew, and a timed rep ran.
+
+Two rendering bugs were found by eye on a contact sheet of all 15 headline
+shapes and fixed: a two-digit position label was clipped to "L0fr" at the 10th
+fret, and labels collided with the dot on the leftmost string. Both came from
+too little left padding.
+
+**Not verified.** Live Firestore, for the same reason as Task 3 — the emulator
+needs a JVM that is not installed here — so grading from the trainer has been
+exercised against a stub of the storage layer, not the real one.
+
+## Task 6: Production deployment path + phone instructions
+
+**Goal.** Get the repo to "set Firebase, enable Pages, push main, open the URL on
+your phone". No new features — just proving the production build actually works
+when hosted at `https://eduardob999.github.io/GHAPP/`, and writing the steps
+down.
+
+**Changed.** `index.html`, `.github/workflows/deploy.yml`, `README.md`. Nothing
+else — every learning feature, the audio layer, the scheduler, the storage
+layer, `vite.config.ts` and the service worker are untouched.
+
+**Base path: kept relative, and verified.** Tasks 1–5 used `base: './'` on the
+theory that it resolves correctly under any sub-path, but that was never tested
+anywhere but the origin root. This task built a small server that mimics a Pages
+*project* site — repo served under `/GHAPP/`, 404 at the origin root, 301 on the
+bare path — and drove Chrome against it. Everything holds: all assets 200 under
+`/GHAPP/`, the manifest's relative `start_url`/`scope`/`id` resolve to
+`/GHAPP/`, all four icons fetch, the service worker registers at
+`/GHAPP/service-worker.js` with scope `/GHAPP/`, all 8 precache entries live
+under the prefix, and the shell still boots from cache with the server dead.
+
+**One real fix.** `index.html` referenced public assets as `./manifest.webmanifest`
+and `./icons/...`. Vite only rewrites public-asset references written
+root-absolute, so building with `VITE_BASE_PATH=/GHAPP/` produced a mix —
+absolute JS and CSS, relative manifest and icons. Switching those three
+references to `/manifest.webmanifest` and `/icons/...` makes Vite emit URLs that
+match whichever base is set: `./…` with the relative default, `/GHAPP/…` with an
+absolute base. Both modes are now internally consistent, and the
+`VITE_BASE_PATH` override is genuinely usable rather than a footgun.
+
+**Deliberate deviation.** The task suggested setting `base` to `/GHAPP/`. It is
+left relative because (a) it is verified working at the sub-path, (b) an
+absolute base would make `npm run preview` serve at `/GHAPP/` rather than the
+root, which the same task asked to keep working, and (c) relative keeps the one
+build working on Firebase Hosting and a user site too. The README documents the
+one case that would justify switching — adding client-side routing with real
+sub-paths — and the exact command.
+
+**Workflow.** Guards untouched, as required. Added the live URL and the one-time
+UI steps to the header comment, and a final `Show deployed URL` step that runs
+with `if: always()` and prints whether the run actually published — the
+counterweight to `continue-on-error` making a non-publishing run look green.

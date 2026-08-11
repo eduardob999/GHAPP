@@ -97,6 +97,32 @@ is a loose one, and the panel says so via `overlappingStrings`. Genuine
 per-string detection would need multi-channel or timbral analysis, which is not
 on this roadmap.
 
+## Task 5 — CAGED & chord-shape fretting trainer ✅
+
+A dedicated home for the fretting hand, wired into the existing catalog and
+scheduler rather than beside them.
+
+- **Diagram metadata** — 20 chord shapes in `src/domain/skills.ts` gained
+  `fingers`, `mutedStrings` and a fret window. All optional, so nothing that
+  already existed changed shape; scale patterns simply have no diagram and drop
+  out of the trainer.
+- **`FretboardDiagram`** — inline SVG chord charts, no dependencies and no
+  image assets, so they render from the service worker cache like everything
+  else.
+- **`ShapeTrainerPanel`** — pick a shape, run a short timed rep (20/30/40s),
+  grade it Easy/Good/Hard/Fail. Grades go through the *same*
+  `upsertSkillPracticeState` and the same `/users/{uid}/skills/{skillId}`
+  documents as Today's Session, so the trainer is another way into one practice
+  record rather than a parallel one.
+- **Hand-off** — fretting cards in Today's Session carry an "Open in Fretting
+  Trainer" link, shown only for shapes that actually have a diagram.
+
+Short reps are the point: a fixed countdown keeps a rep from drifting into
+noodling, and the scheduler spaces the returns.
+
+Still manual-graded. Chord audio grading — telling a clean barre from a buzzing
+one by ear — needs polyphonic analysis and stays in Milestone 4.
+
 ## Milestone 2 — Skill model and scheduler
 
 - Define the micro-skill taxonomy: fretting shapes, picking patterns, theory

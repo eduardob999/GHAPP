@@ -1,8 +1,19 @@
 name: Deploy to GitHub Pages
 
+# Once Pages is enabled and a deploy succeeds, the app is live at:
+#
+#     https://eduardob999.github.io/GHAPP/
+#
 # ─── One-time manual setup, which no workflow can do for you ──────────────────
 #
-# Go to  Settings → Pages → Build and deployment → Source: **GitHub Actions**.
+#   1. Open https://github.com/eduardob999/GHAPP/settings/pages
+#   2. Under "Build and deployment", set Source to **GitHub Actions**
+#   3. Save
+#
+# Until that is done, configure-pages and deploy-pages both log 404 HttpErrors
+# and publish nothing — but CI stays green, because both carry
+# continue-on-error (see Task 4). The next successful run after enabling Pages
+# publishes the site at the URL above.
 #
 # Until that is set, `actions/deploy-pages` fails with:
 #   Error: Failed to create deployment (status: 404)
@@ -128,3 +139,17 @@ jobs:
       - id: deployment
         uses: actions/deploy-pages@v5
         continue-on-error: true
+
+      # Runs even when the step above 404s, so every run ends by telling you
+      # where the app is and whether it actually published.
+      - name: Show deployed URL
+        if: always()
+        run: |
+          echo "App URL: https://eduardob999.github.io/GHAPP/"
+          if [ -n "${{ steps.deployment.outputs.page_url }}" ]; then
+            echo "Published this run: ${{ steps.deployment.outputs.page_url }}"
+          else
+            echo "NOT published this run."
+            echo "Enable Pages first: Settings -> Pages -> Source: GitHub Actions"
+            echo "https://github.com/eduardob999/GHAPP/settings/pages"
+          fi

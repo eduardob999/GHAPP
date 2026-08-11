@@ -431,6 +431,154 @@ code {
   color: var(--error);
 }
 
+/* Fretting trainer -------------------------------------------------------- */
+
+.diagram {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 16px;
+  padding: 16px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--text-muted) 6%, transparent);
+}
+
+.fretboard {
+  max-width: 100%;
+  height: auto;
+}
+
+.fretboard__fret,
+.fretboard__string {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+  opacity: 0.55;
+}
+
+.fretboard__nut {
+  fill: var(--text);
+}
+
+.fretboard__position {
+  fill: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-anchor: end;
+}
+
+.fretboard__muted line {
+  stroke: var(--text-muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.fretboard__open {
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 2;
+}
+
+.fretboard__open--root {
+  stroke: var(--accent);
+}
+
+.fretboard__dot,
+.fretboard__barre {
+  fill: var(--text);
+}
+
+.fretboard__dot--root {
+  fill: var(--accent);
+}
+
+/* The root sits under a barre, so it gets a ring rather than its own dot. */
+.fretboard__root-ring {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+.fretboard__finger {
+  fill: var(--bg-elevated);
+  font-size: 11px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.diagram__caption {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.select {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.select:focus-visible {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 2px;
+}
+
+.countdown {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 16px 0;
+  padding: 20px;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.countdown__value {
+  font-size: 3rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--accent-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.countdown__unit {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.task__link {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-soft);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.task__link:hover {
+  text-decoration: underline;
+}
+
+.task__link:focus-visible {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 2px;
+}
+
 /* String Sniper ----------------------------------------------------------- */
 
 .field {

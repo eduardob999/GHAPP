@@ -30,7 +30,27 @@ export type DifficultyLevel = 'beginner' | 'intermediate' | 'advanced';
 
 export type CagedShape = 'C' | 'A' | 'G' | 'E' | 'D';
 
-export type ChordQuality = 'major' | 'minor' | 'power' | 'dominant';
+export type ChordQuality =
+  | 'major'
+  | 'minor'
+  | 'power'
+  | 'dominant'
+  | 'dominant7'
+  | 'sus2'
+  | 'sus4';
+
+export type FingerNumber = 1 | 2 | 3 | 4;
+
+/** One stopped or open note in a chord diagram. */
+export interface FingerPosition {
+  /** 6 (low E) to 1 (high E). */
+  string: number;
+  /** 0 is an open string. */
+  fret: number;
+  finger?: FingerNumber;
+  /** Part of a barre — the diagram joins same-fret barre notes into a bar. */
+  barre?: boolean;
+}
 
 export type PickingTechnique = 'pick' | 'bare' | 'fingerstyle';
 
@@ -42,6 +62,19 @@ export interface FrettingMetadata {
   /** Fret carrying the root. 0 means an open position. */
   rootFret?: number;
   scaleName?: string;
+
+  // ── Diagram data ─────────────────────────────────────────────────────────
+  // All optional: a skill without `fingers` simply has no diagram and is left
+  // out of the shape trainer. Scale patterns are the current example.
+
+  /** Lowest fret to draw. 0 draws the nut. */
+  lowestFret?: number;
+  /** Highest fret to draw. */
+  highestFret?: number;
+  /** Stopped notes. Strings absent from this list and not muted ring open. */
+  fingers?: FingerPosition[];
+  /** Strings that must not sound, drawn with an ✕ above the nut. */
+  mutedStrings?: number[];
 }
 
 export interface PickingMetadata {
@@ -161,7 +194,20 @@ export const SKILL_CATALOG: readonly MicroSkillDefinition[] = [
       'Form the C-shape major with the root on the 5th string, 3rd fret. Strum strings 5–1 and check every note rings.',
     suggestedDurationSeconds: 30,
     active: true,
-    metadata: { shapeName: 'C', chordQuality: 'major', rootString: 5, rootFret: 3 },
+    metadata: {
+      shapeName: 'C',
+      chordQuality: 'major',
+      rootString: 5,
+      rootFret: 3,
+      lowestFret: 0,
+      highestFret: 3,
+      mutedStrings: [6],
+      fingers: [
+        { string: 5, fret: 3, finger: 3 },
+        { string: 4, fret: 2, finger: 2 },
+        { string: 2, fret: 1, finger: 1 },
+      ],
+    },
   },
   {
     id: 'fretting.caged.a-shape.major.5th',
@@ -173,7 +219,25 @@ export const SKILL_CATALOG: readonly MicroSkillDefinition[] = [
       'A-shape major, root on the 5th string, 5th fret. Keep the barre light and let strings 5–1 sound cleanly.',
     suggestedDurationSeconds: 30,
     active: true,
-    metadata: { shapeName: 'A', chordQuality: 'major', rootString: 5, rootFret: 5 },
+    metadata: {
+      shapeName: 'A',
+      chordQuality: 'major',
+      rootString: 5,
+      rootFret: 5,
+      lowestFret: 5,
+      highestFret: 8,
+      mutedStrings: [6],
+      fingers: [
+        { string: 5, fret: 5, finger: 1, barre: true },
+        { string: 4, fret: 5, finger: 1, barre: true },
+        { string: 3, fret: 5, finger: 1, barre: true },
+        { string: 2, fret: 5, finger: 1, barre: true },
+        { string: 1, fret: 5, finger: 1, barre: true },
+        { string: 4, fret: 7, finger: 2 },
+        { string: 3, fret: 7, finger: 3 },
+        { string: 2, fret: 7, finger: 4 },
+      ],
+    },
   },
   {
     id: 'fretting.caged.g-shape.major.7th',
@@ -185,7 +249,22 @@ export const SKILL_CATALOG: readonly MicroSkillDefinition[] = [
       'The awkward one. G-shape major with the root on the 6th string, 7th fret. Aim for the outer strings first.',
     suggestedDurationSeconds: 45,
     active: true,
-    metadata: { shapeName: 'G', chordQuality: 'major', rootString: 6, rootFret: 7 },
+    metadata: {
+      shapeName: 'G',
+      chordQuality: 'major',
+      rootString: 6,
+      rootFret: 7,
+      lowestFret: 4,
+      highestFret: 7,
+      fingers: [
+        { string: 4, fret: 4, finger: 1, barre: true },
+        { string: 3, fret: 4, finger: 1, barre: true },
+        { string: 2, fret: 4, finger: 1, barre: true },
+        { string: 5, fret: 6, finger: 2 },
+        { string: 6, fret: 7, finger: 3 },
+        { string: 1, fret: 7, finger: 4 },
+      ],
+    },
   },
   {
     id: 'fretting.caged.e-shape.major.5th',
@@ -197,7 +276,25 @@ export const SKILL_CATALOG: readonly MicroSkillDefinition[] = [
       'E-shape major barre, root on the 6th string, 5th fret. Strum all six strings and listen for a dead 2nd string.',
     suggestedDurationSeconds: 30,
     active: true,
-    metadata: { shapeName: 'E', chordQuality: 'major', rootString: 6, rootFret: 5 },
+    metadata: {
+      shapeName: 'E',
+      chordQuality: 'major',
+      rootString: 6,
+      rootFret: 5,
+      lowestFret: 5,
+      highestFret: 8,
+      fingers: [
+        { string: 6, fret: 5, finger: 1, barre: true },
+        { string: 5, fret: 5, finger: 1, barre: true },
+        { string: 4, fret: 5, finger: 1, barre: true },
+        { string: 3, fret: 5, finger: 1, barre: true },
+        { string: 2, fret: 5, finger: 1, barre: true },
+        { string: 1, fret: 5, finger: 1, barre: true },
+        { string: 5, fret: 7, finger: 3 },
+        { string: 4, fret: 7, finger: 4 },
+        { string: 3, fret: 6, finger: 2 },
+      ],
+    },
   },
   {
     id: 'fretting.caged.d-shape.major.10th',
@@ -209,7 +306,21 @@ export const SKILL_CATALOG: readonly MicroSkillDefinition[] = [
       'D-shape major up at the 10th fret, root on the 4th string. Only strings 4–1 sound; mute the rest.',
     suggestedDurationSeconds: 45,
     active: true,
-    metadata: { shapeName: 'D', chordQuality: 'major', rootString: 4, rootFret: 10 },
+    metadata: {
+      shapeName: 'D',
+      chordQuality: 'major',
+      rootString: 4,
+      rootFret: 10,
+      lowestFret: 10,
+      highestFret: 13,
+      mutedStrings: [6, 5],
+      fingers: [
+        { string: 4, fret: 10, finger: 1 },
+        { string: 3, fret: 12, finger: 2 },
+        { string: 1, fret: 12, finger: 3 },
+        { string: 2, fret: 13, finger: 4 },
+      ],
+    },
   },
   {
     id: 'fretting.caged.a-shape.minor.5th',
@@ -221,7 +332,25 @@ export const SKILL_CATALOG: readonly MicroSkillDefinition[] = [
       'Am-shape barre, root on the 5th string, 5th fret. Compare it against the major shape and feel the one-finger difference.',
     suggestedDurationSeconds: 30,
     active: true,
-    metadata: { shapeName: 'A', chordQuality: 'minor', rootString: 5, rootFret: 5 },
+    metadata: {
+      shapeName: 'A',
+      chordQuality: 'minor',
+      rootString: 5,
+      rootFret: 5,
+      lowestFret: 5,
+      highestFret: 8,
+      mutedStrings: [6],
+      fingers: [
+        { string: 5, fret: 5, finger: 1, barre: true },
+        { string: 4, fret: 5, finger: 1, barre: true },
+        { string: 3, fret: 5, finger: 1, barre: true },
+        { string: 2, fret: 5, finger: 1, barre: true },
+        { string: 1, fret: 5, finger: 1, barre: true },
+        { string: 4, fret: 7, finger: 3 },
+        { string: 3, fret: 7, finger: 4 },
+        { string: 2, fret: 6, finger: 2 },
+      ],
+    },
   },
   {
     id: 'fretting.caged.e-shape.minor.7th',
@@ -233,7 +362,24 @@ export const SKILL_CATALOG: readonly MicroSkillDefinition[] = [
       'Em-shape barre, root on the 6th string, 7th fret. Move between it and the major shape without releasing the barre.',
     suggestedDurationSeconds: 30,
     active: true,
-    metadata: { shapeName: 'E', chordQuality: 'minor', rootString: 6, rootFret: 7 },
+    metadata: {
+      shapeName: 'E',
+      chordQuality: 'minor',
+      rootString: 6,
+      rootFret: 7,
+      lowestFret: 7,
+      highestFret: 10,
+      fingers: [
+        { string: 6, fret: 7, finger: 1, barre: true },
+        { string: 5, fret: 7, finger: 1, barre: true },
+        { string: 4, fret: 7, finger: 1, barre: true },
+        { string: 3, fret: 7, finger: 1, barre: true },
+        { string: 2, fret: 7, finger: 1, barre: true },
+        { string: 1, fret: 7, finger: 1, barre: true },
+        { string: 5, fret: 9, finger: 3 },
+        { string: 4, fret: 9, finger: 4 },
+      ],
+    },
   },
 
   // ── Fretting: open chords ─────────────────────────────────────────────────
@@ -246,7 +392,18 @@ export const SKILL_CATALOG: readonly MicroSkillDefinition[] = [
     description: 'Open G. Fret it, strum, release, re-form. Ten clean repetitions.',
     suggestedDurationSeconds: 20,
     active: true,
-    metadata: { chordQuality: 'major', rootString: 6, rootFret: 3 },
+    metadata: {
+      chordQuality: 'major',
+      rootString: 6,
+      rootFret: 3,
+      lowestFret: 0,
+      highestFret: 3,
+      fingers: [
+        { string: 6, fret: 3, finger: 2 },
+        { string: 5, fret: 2, finger: 1 },
+        { string: 1, fret: 3, finger: 3 },
+      ],
+    },
   },
   {
     id: 'fretting.open.c',
@@ -257,7 +414,19 @@ export const SKILL_CATALOG: readonly MicroSkillDefinition[] = [
     description: 'Open C. Watch that the 1st string stays clear of your third finger.',
     suggestedDurationSeconds: 20,
     active: true,
-    metadata: { chordQuality: 'major', rootString: 5, rootFret: 3 },
+    metadata: {
+      chordQuality: 'major',
+      rootString: 5,
+      rootFret: 3,
+      lowestFret: 0,
+      highestFret: 3,
+      mutedStrings: [6],
+      fingers: [
+        { string: 5, fret: 3, finger: 3 },
+        { string: 4, fret: 2, finger: 2 },
+        { string: 2, fret: 1, finger: 1 },
+      ],
+    },
   },
   {
     id: 'fretting.open.d',
@@ -268,7 +437,19 @@ export const SKILL_CATALOG: readonly MicroSkillDefinition[] = [
     description: 'Open D, strings 4–1 only. Practise muting the 5th and 6th strings with your thumb.',
     suggestedDurationSeconds: 20,
     active: true,
-    metadata: { chordQuality: 'major', rootString: 4, rootFret: 0 },
+    metadata: {
+      chordQuality: 'major',
+      rootString: 4,
+      rootFret: 0,
+      lowestFret: 0,
+      highestFret: 3,
+      mutedStrings: [6, 5],
+      fingers: [
+        { string: 3, fret: 2, finger: 1 },
+        { string: 1, fret: 2, finger: 2 },
+        { string: 2, fret: 3, finger: 3 },
+      ],
+    },
   },
   {
     id: 'fretting.open.e-minor',
@@ -279,7 +460,17 @@ export const SKILL_CATALOG: readonly MicroSkillDefinition[] = [
     description: 'Open Em across all six strings. The easiest full-width chord — use it to check your strumming arc.',
     suggestedDurationSeconds: 20,
     active: true,
-    metadata: { chordQuality: 'minor', rootString: 6, rootFret: 0 },
+    metadata: {
+      chordQuality: 'minor',
+      rootString: 6,
+      rootFret: 0,
+      lowestFret: 0,
+      highestFret: 3,
+      fingers: [
+        { string: 5, fret: 2, finger: 2 },
+        { string: 4, fret: 2, finger: 3 },
+      ],
+    },
   },
   {
     id: 'fretting.open.a-minor',
@@ -290,7 +481,19 @@ export const SKILL_CATALOG: readonly MicroSkillDefinition[] = [
     description: 'Open Am, strings 5–1. Switch between Am and open C without lifting your first finger.',
     suggestedDurationSeconds: 20,
     active: true,
-    metadata: { chordQuality: 'minor', rootString: 5, rootFret: 0 },
+    metadata: {
+      chordQuality: 'minor',
+      rootString: 5,
+      rootFret: 0,
+      lowestFret: 0,
+      highestFret: 3,
+      mutedStrings: [6],
+      fingers: [
+        { string: 4, fret: 2, finger: 2 },
+        { string: 3, fret: 2, finger: 3 },
+        { string: 2, fret: 1, finger: 1 },
+      ],
+    },
   },
 
   // ── Fretting: barre chords ────────────────────────────────────────────────
@@ -304,7 +507,25 @@ export const SKILL_CATALOG: readonly MicroSkillDefinition[] = [
       'Full six-string barre at the 5th fret. Roll the first finger slightly onto its side and use the least pressure that still sounds.',
     suggestedDurationSeconds: 45,
     active: true,
-    metadata: { shapeName: 'E', chordQuality: 'major', rootString: 6, rootFret: 5 },
+    metadata: {
+      shapeName: 'E',
+      chordQuality: 'major',
+      rootString: 6,
+      rootFret: 5,
+      lowestFret: 5,
+      highestFret: 8,
+      fingers: [
+        { string: 6, fret: 5, finger: 1, barre: true },
+        { string: 5, fret: 5, finger: 1, barre: true },
+        { string: 4, fret: 5, finger: 1, barre: true },
+        { string: 3, fret: 5, finger: 1, barre: true },
+        { string: 2, fret: 5, finger: 1, barre: true },
+        { string: 1, fret: 5, finger: 1, barre: true },
+        { string: 5, fret: 7, finger: 3 },
+        { string: 4, fret: 7, finger: 4 },
+        { string: 3, fret: 6, finger: 2 },
+      ],
+    },
   },
   {
     id: 'fretting.barre.a-shape.major.5th',
@@ -315,7 +536,25 @@ export const SKILL_CATALOG: readonly MicroSkillDefinition[] = [
     description: 'A-shape barre, strings 5–1. Check the 1st string is not being choked by the ring finger.',
     suggestedDurationSeconds: 45,
     active: true,
-    metadata: { shapeName: 'A', chordQuality: 'major', rootString: 5, rootFret: 5 },
+    metadata: {
+      shapeName: 'A',
+      chordQuality: 'major',
+      rootString: 5,
+      rootFret: 5,
+      lowestFret: 5,
+      highestFret: 8,
+      mutedStrings: [6],
+      fingers: [
+        { string: 5, fret: 5, finger: 1, barre: true },
+        { string: 4, fret: 5, finger: 1, barre: true },
+        { string: 3, fret: 5, finger: 1, barre: true },
+        { string: 2, fret: 5, finger: 1, barre: true },
+        { string: 1, fret: 5, finger: 1, barre: true },
+        { string: 4, fret: 7, finger: 2 },
+        { string: 3, fret: 7, finger: 3 },
+        { string: 2, fret: 7, finger: 4 },
+      ],
+    },
   },
   {
     id: 'fretting.barre.e-shape.minor.8th',
@@ -326,7 +565,24 @@ export const SKILL_CATALOG: readonly MicroSkillDefinition[] = [
     description: 'Em-shape barre high on the neck, where string tension is lower but spacing is tighter.',
     suggestedDurationSeconds: 45,
     active: true,
-    metadata: { shapeName: 'E', chordQuality: 'minor', rootString: 6, rootFret: 8 },
+    metadata: {
+      shapeName: 'E',
+      chordQuality: 'minor',
+      rootString: 6,
+      rootFret: 8,
+      lowestFret: 8,
+      highestFret: 11,
+      fingers: [
+        { string: 6, fret: 8, finger: 1, barre: true },
+        { string: 5, fret: 8, finger: 1, barre: true },
+        { string: 4, fret: 8, finger: 1, barre: true },
+        { string: 3, fret: 8, finger: 1, barre: true },
+        { string: 2, fret: 8, finger: 1, barre: true },
+        { string: 1, fret: 8, finger: 1, barre: true },
+        { string: 5, fret: 10, finger: 3 },
+        { string: 4, fret: 10, finger: 4 },
+      ],
+    },
   },
   {
     id: 'fretting.barre.a-shape.minor.7th',
@@ -337,7 +593,25 @@ export const SKILL_CATALOG: readonly MicroSkillDefinition[] = [
     description: 'Am-shape barre at the 7th fret. Alternate it with the open Em and listen for the same chord.',
     suggestedDurationSeconds: 45,
     active: true,
-    metadata: { shapeName: 'A', chordQuality: 'minor', rootString: 5, rootFret: 7 },
+    metadata: {
+      shapeName: 'A',
+      chordQuality: 'minor',
+      rootString: 5,
+      rootFret: 7,
+      lowestFret: 7,
+      highestFret: 10,
+      mutedStrings: [6],
+      fingers: [
+        { string: 5, fret: 7, finger: 1, barre: true },
+        { string: 4, fret: 7, finger: 1, barre: true },
+        { string: 3, fret: 7, finger: 1, barre: true },
+        { string: 2, fret: 7, finger: 1, barre: true },
+        { string: 1, fret: 7, finger: 1, barre: true },
+        { string: 4, fret: 9, finger: 3 },
+        { string: 3, fret: 9, finger: 4 },
+        { string: 2, fret: 8, finger: 2 },
+      ],
+    },
   },
 
   // ── Fretting: power chords ────────────────────────────────────────────────
@@ -350,7 +624,18 @@ export const SKILL_CATALOG: readonly MicroSkillDefinition[] = [
     description: 'Two-note G5 on strings 6 and 5. Mute everything else with the side of your picking hand.',
     suggestedDurationSeconds: 20,
     active: true,
-    metadata: { chordQuality: 'power', rootString: 6, rootFret: 3 },
+    metadata: {
+      chordQuality: 'power',
+      rootString: 6,
+      rootFret: 3,
+      lowestFret: 3,
+      highestFret: 6,
+      mutedStrings: [4, 3, 2, 1],
+      fingers: [
+        { string: 6, fret: 3, finger: 1 },
+        { string: 5, fret: 5, finger: 3 },
+      ],
+    },
   },
   {
     id: 'fretting.power.6th-string.5th',
@@ -361,7 +646,18 @@ export const SKILL_CATALOG: readonly MicroSkillDefinition[] = [
     description: 'A5 on strings 6 and 5. Slide between the 3rd and 5th fret shapes without lifting.',
     suggestedDurationSeconds: 20,
     active: true,
-    metadata: { chordQuality: 'power', rootString: 6, rootFret: 5 },
+    metadata: {
+      chordQuality: 'power',
+      rootString: 6,
+      rootFret: 5,
+      lowestFret: 5,
+      highestFret: 8,
+      mutedStrings: [4, 3, 2, 1],
+      fingers: [
+        { string: 6, fret: 5, finger: 1 },
+        { string: 5, fret: 7, finger: 3 },
+      ],
+    },
   },
   {
     id: 'fretting.power.5th-string.5th',
@@ -372,7 +668,18 @@ export const SKILL_CATALOG: readonly MicroSkillDefinition[] = [
     description: 'D5 on strings 5 and 4. The 6th string must stay silent — that is the whole exercise.',
     suggestedDurationSeconds: 20,
     active: true,
-    metadata: { chordQuality: 'power', rootString: 5, rootFret: 5 },
+    metadata: {
+      chordQuality: 'power',
+      rootString: 5,
+      rootFret: 5,
+      lowestFret: 5,
+      highestFret: 8,
+      mutedStrings: [6, 3, 2, 1],
+      fingers: [
+        { string: 5, fret: 5, finger: 1 },
+        { string: 4, fret: 7, finger: 3 },
+      ],
+    },
   },
   {
     id: 'fretting.power.5th-string.7th',
@@ -383,7 +690,18 @@ export const SKILL_CATALOG: readonly MicroSkillDefinition[] = [
     description: 'E5 on strings 5 and 4. Jump between this and the 6th-string A5 to practise string switching.',
     suggestedDurationSeconds: 20,
     active: true,
-    metadata: { chordQuality: 'power', rootString: 5, rootFret: 7 },
+    metadata: {
+      chordQuality: 'power',
+      rootString: 5,
+      rootFret: 7,
+      lowestFret: 7,
+      highestFret: 10,
+      mutedStrings: [6, 3, 2, 1],
+      fingers: [
+        { string: 5, fret: 7, finger: 1 },
+        { string: 4, fret: 9, finger: 3 },
+      ],
+    },
   },
 
   // ── Fretting: scale patterns ──────────────────────────────────────────────

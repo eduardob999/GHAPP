@@ -3,6 +3,7 @@ import type { User } from 'firebase/auth';
 import { useSkillStates } from '../hooks/useSkillStates';
 import { upsertSkillPracticeState } from '../storage/skillsState';
 import { planSession, type PlannedItem } from '../domain/sessionPlanner';
+import { hasDiagram } from '../domain/shapeTrainer';
 import {
   CATEGORY_LABELS,
   FAMILY_LABELS,
@@ -40,7 +41,16 @@ function formatDue(due: Date, now: Date): string {
   return RELATIVE_TIME.format(Math.round(hours / 24), 'day');
 }
 
-export function PracticePanel({ user }: { user: User }) {
+export interface PracticePanelProps {
+  user: User;
+  /**
+   * Hands a fretting shape to the Fretting Trainer. Optional so the panel still
+   * renders standalone; the button only appears for shapes that have a diagram.
+   */
+  onOpenInTrainer?: (skillId: string) => void;
+}
+
+export function PracticePanel({ user, onOpenInTrainer }: PracticePanelProps) {
   const { states, loading, error } = useSkillStates(user.uid);
 
   const [plan, setPlan] = useState<PlannedItem[] | null>(null);
@@ -165,6 +175,16 @@ export function PracticePanel({ user }: { user: User }) {
                       ))}
                     </div>
                   )}
+
+                  {onOpenInTrainer && hasDiagram(definition) ? (
+                    <button
+                      type="button"
+                      className="task__link"
+                      onClick={() => onOpenInTrainer(definition.id)}
+                    >
+                      Open in Fretting Trainer →
+                    </button>
+                  ) : null}
                 </li>
               );
             })}

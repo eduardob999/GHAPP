@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import type { User } from 'firebase/auth';
 import type { Timestamp } from 'firebase/firestore';
 import { signOutUser } from '../auth';
@@ -7,6 +7,7 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { recordPracticePing } from '../storage/userState';
 import { PracticePanel } from './PracticePanel';
+import { ShapeTrainerPanel } from './ShapeTrainerPanel';
 import { StringSniperPanel } from './StringSniperPanel';
 import { SyncBadge } from './SyncBadge';
 import { TunerPanel } from './TunerPanel';
@@ -34,6 +35,11 @@ export function Dashboard({ user }: DashboardProps) {
   const online = useOnlineStatus();
   const { profile, fromCache, hasPendingWrites, loading, error } = useUserProfile(user);
   const [signingOut, setSigningOut] = useState(false);
+
+  // Set when Today's Session hands a shape to the Fretting Trainer, and cleared
+  // once the trainer has picked it up, so the same request cannot re-fire.
+  const [trainerSkillId, setTrainerSkillId] = useState<string | null>(null);
+  const handleTrainerRequestHandled = useCallback(() => setTrainerSkillId(null), []);
 
   async function handleSignOut() {
     setSigningOut(true);
@@ -82,7 +88,13 @@ export function Dashboard({ user }: DashboardProps) {
       </header>
 
       <main className="content">
-        <PracticePanel user={user} />
+        <PracticePanel user={user} onOpenInTrainer={setTrainerSkillId} />
+
+        <ShapeTrainerPanel
+          user={user}
+          requestedSkillId={trainerSkillId}
+          onRequestHandled={handleTrainerRequestHandled}
+        />
 
         <TunerPanel />
 
