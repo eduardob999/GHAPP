@@ -50,25 +50,29 @@ jobs:
           node-version: 24
           cache: npm
 
-      # EXPECTED TO FAIL until Pages is enabled — see the header comment.
-      # The failure looks like:
+      # This step queries the GitHub Pages site for this repo. It will return 404
+      # (and log an HttpError) until:
+      #   - GitHub Pages is enabled for this repository, AND
+      #   - "Source: GitHub Actions" is selected in Settings → Pages.
       #
       #   HttpError: Not Found
       #   GET https://api.github.com/repos/OWNER/REPO/pages
       #   Get Pages site failed. Please verify that the repository has Pages
       #   enabled and configured to build using GitHub Actions...
       #
-      # The Pages REST endpoints 404 when no Pages site exists yet, so this is
-      # the API reporting "not enabled", not a broken workflow.
+      # `continue-on-error: true` keeps the build job green when Pages is not
+      # configured yet, and still uploads an artifact so the run is deployable
+      # the moment Pages is turned on.
       #
-      # continue-on-error lets the build finish and upload its artifact anyway,
-      # so a run produces something deployable the moment Pages is turned on.
       # `enablement: true` is deliberately NOT set: it needs a PAT or GitHub App
       # with Pages admin rights, which this workflow does not have by design.
       #
       # The step is kept rather than deleted because it is the documented Pages
       # flow, and its base_url/base_path outputs would matter if vite.config.ts
       # ever moved off a relative `base`.
+      #
+      # SAFE TO REMOVE the guard below once Pages is enabled and a deploy has
+      # succeeded.
       - uses: actions/configure-pages@v6
         continue-on-error: true
 
@@ -103,18 +107,24 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      # ALSO EXPECTED TO FAIL until Pages is enabled, with:
+      # This step creates the GitHub Pages deployment from the built artifact.
+      # Until Pages is enabled and configured for "GitHub Actions" in
+      # Settings → Pages, the GitHub API returns 404 and this action logs:
       #
       #   Error: Failed to create deployment (status: 404) with build version ...
       #   Ensure GitHub Pages has been enabled:
       #   https://github.com/OWNER/REPO/settings/pages
       #
-      # Deliberately NOT given continue-on-error. Once Pages is enabled, a
-      # failure here means something genuinely went wrong with the deployment
-      # and the run should go red.
+      # `continue-on-error: true` keeps the workflow green in that case.
       #
-      # Fix it once, in the UI: Settings → Pages → Source: GitHub Actions. Every
-      # run after that succeeds and both 404s disappear. No REST calls to
-      # create or update the Pages site are made from this workflow.
+      # ⚠ TRADE-OFF: this also swallows *genuine* deployment failures. While the
+      # guard is on, a green run does NOT mean the site published — check the
+      # step's log, or the Pages environment, to confirm. Remove the guard once
+      # Pages is enabled and a deployment has succeeded, so real breakage goes
+      # red again.
+      #
+      # No REST calls to create or update the Pages site are made from this
+      # workflow; enablement stays a one-time manual step in the UI.
       - id: deployment
         uses: actions/deploy-pages@v5
+        continue-on-error: true

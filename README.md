@@ -145,6 +145,30 @@ Some notes on how it works, since the settings are not obvious:
 The tuner is read-only for now: it writes nothing to Firestore and touches no
 scheduler state.
 
+## String Sniper
+
+A picking-accuracy drill. Choose a target string and fret range, press **Start
+drill**, and pick without looking — the panel says whether the note you produced
+belongs on that target.
+
+**What it can and cannot tell you.** A microphone hears pitch, not geometry. A2
+is the open 5th string *and* the 5th fret of the 6th string, so no pitch
+detector can know which string your pick struck. A "hit" means *the note is
+reachable on the target string within the allowed frets*:
+
+- **Open string only** — a tight test. The target is a single pitch, and every
+  other open string is far enough away to be rejected.
+- **A fret range** — any note in the range counts.
+- **Any fret** — deliberately loose, and the panel warns when other strings
+  could produce the same note.
+
+Verdicts are `Hit`, `Right string, off pitch` (within two semitones of the
+range — usually a fretting slip), and `Wrong string` (further out than that).
+
+Like the tuner, it runs its own audio engine, needs no network, and writes
+nothing — results are shown and discarded. Wiring drill performance into the
+spaced scheduler is a later milestone.
+
 ## Data model
 
 ```
@@ -170,11 +194,16 @@ and let `onSnapshot` drive the UI.
 
 `.github/workflows/deploy.yml` builds and publishes on every push to `main`.
 
-Step 1 is not optional, and no workflow change can substitute for it. If it is
-skipped, `deploy-pages` fails with `Failed to create deployment (status: 404)`.
-The `enablement: true` input on `configure-pages` does not help here: its own
-docs require a token other than `GITHUB_TOKEN` (a PAT with `repo` scope, or a
-GitHub App with `administration:write`).
+The workflow is configured to **stay green even before Pages is enabled** —
+`configure-pages` and `deploy-pages` both carry `continue-on-error: true`, so
+their 404s are logged without failing the run. Getting a *live site* still needs
+step 1 below, and no workflow change can substitute for it: the `enablement: true`
+input on `configure-pages` requires a token other than `GITHUB_TOKEN` (a PAT with
+`repo` scope, or a GitHub App with `administration:write`).
+
+While those guards are on, a green run does not prove the site published. Once
+Pages is enabled and a deploy has succeeded, remove `continue-on-error` from
+`deploy-pages` so real failures go red again — the step is commented to say so.
 
 1. **Settings → Pages → Source → GitHub Actions**.
 2. **Settings → Secrets and variables → Actions**: add the `VITE_FIREBASE_*`

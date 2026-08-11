@@ -74,6 +74,29 @@ The practice brain, which is what Milestone 2 was about.
 Still open from Milestone 2: a session log (`/users/{uid}/sessions`) so history
 survives changes to the algorithm.
 
+## Task 4 — String Sniper drill + non-fatal Pages 404s ✅
+
+The first audio-*graded* exercise, and the deployment pipeline made quiet.
+
+- **Drill logic** (`src/domain/stringSniper.ts`) — pure grading of a detected
+  pitch against a target string and fret range, returning
+  `hit` / `wrong_string` / `off_pitch` / `no_signal`.
+- **`useStringSniper`** — its own `AudioEngine` instance rather than sharing the
+  tuner's hook, so the drill can smooth for pick attacks without changing how
+  the tuner feels, and cannot regress it.
+- **`StringSniperPanel`** — string and fret-range pickers, a colour-coded
+  verdict, and the detected note. Free practice: nothing is written to Firestore
+  and the spaced scheduler is untouched.
+- **Pages workflow** — `continue-on-error` on both Pages steps.
+
+**Known limit, by design.** A microphone hears pitch, not geometry. The same
+note exists in several places on the neck, so a "hit" means *the note you played
+is reachable on the target string within the allowed frets* — not that your pick
+struck that string. Narrow ranges (an open string) are a tight test; "any fret"
+is a loose one, and the panel says so via `overlappingStrings`. Genuine
+per-string detection would need multi-channel or timbral analysis, which is not
+on this roadmap.
+
 ## Milestone 2 — Skill model and scheduler
 
 - Define the micro-skill taxonomy: fretting shapes, picking patterns, theory
@@ -122,24 +145,33 @@ Capture and monophonic pitch detection landed early, in Task 2. What remains:
 
 ## Deployment / GitHub Pages
 
-The workflow cannot enable Pages for you, and it does not try.
+The workflow cannot enable Pages for you, and it does not try. It is configured
+to **stay green even when Pages is not enabled**: both `actions/configure-pages`
+and `actions/deploy-pages` carry `continue-on-error: true`, so their 404s are
+logged without failing the run.
+
+To get an actual live site:
 
 1. **Settings → Pages → Build and deployment → Source: GitHub Actions.**
 2. Add the `VITE_FIREBASE_*` values as repository secrets.
 3. Add the Pages domain to Firebase's authorised domains.
 
-Until step 1 is done, every run shows two 404s even though the build itself
-succeeds and uploads its artifact:
+Until step 1 is done, every run logs two 404s while still reporting success:
 
 - `actions/configure-pages` — `HttpError: Not Found` on
-  `GET /repos/OWNER/REPO/pages`. Allowed to fail via `continue-on-error`.
+  `GET /repos/OWNER/REPO/pages`.
 - `actions/deploy-pages` — `Failed to create deployment (status: 404) … Ensure
-  GitHub Pages has been enabled`. Not suppressed, because after enablement a
-  failure here is real.
+  GitHub Pages has been enabled`.
 
 Both come from the same cause: the Pages REST endpoints 404 while no Pages site
 exists. `enablement: true` on `configure-pages` cannot fix it — that input needs
 a PAT or GitHub App with Pages admin rights, which `GITHUB_TOKEN` is not.
+
+**While the guards are on, a green run does not prove the site published.** That
+is the deliberate trade-off for a quiet pipeline before enablement. Once Pages is
+enabled and a deployment has succeeded, remove `continue-on-error` from
+`deploy-pages` — and optionally from `configure-pages` — so genuine deployment
+failures go red again. Both steps are commented to say so.
 
 ## Constraints that shape the design
 

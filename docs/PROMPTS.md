@@ -179,3 +179,81 @@ easy, session completion, and re-planning skipping what was just scheduled.
 Not verified: live Firestore. The emulator needs a JVM that is not installed
 here, so the round trip through `/users/{uid}/skills/{skillId}` — and the
 cross-device sync that depends on it — has only been reasoned about, not run.
+
+## Task 4: String Sniper drill + non-fatal Pages 404s
+
+**Goal.** The first exercise the app actually grades by ear. Pick a target
+string (and optionally a fret range), play, and get told whether the note you
+produced belongs there. Free practice for now — results are shown and discarded,
+with no Firestore writes and no effect on the spaced scheduler. Separately, make
+the Pages workflow stop reporting failure for 404s that only mean "Pages is not
+enabled yet".
+
+**Key components.**
+
+- **Drill logic** (`src/domain/stringSniper.ts`) — `evaluateHit` /
+  `evaluateSniperFrame` grade a detected pitch against the target's MIDI band,
+  returning `hit`, `wrong_string`, `off_pitch` or `no_signal`. Pure and
+  deterministic. Reuses `frequencyToMidi` / `midiToFrequency` /
+  `frequencyToNote` from the Task 2 note maths.
+- **`src/hooks/useStringSniper.ts`** — runs its own `AudioEngine` rather than
+  reusing `usePitchDetector`. The tuner's hook smooths over 5 samples and holds
+  a reading for 600 ms, which is right for a steady tuner readout and wrong for
+  grading individual pick attacks; keeping them separate also means this cannot
+  regress the tuner. A 3-sample median still guards against the octave-up
+  outlier a pick attack produces.
+- **`src/components/StringSniperPanel.tsx`** — string picker, fret-range
+  presets, colour-coded verdict, detected note, cents from target, clarity.
+  Never autostarts; stopping releases the microphone.
+- **`.github/workflows/deploy.yml`** — `continue-on-error: true` on both
+  `configure-pages` and `deploy-pages`.
+
+**The honest limit.** A microphone hears pitch, not geometry. A2 is the open 5th
+string *and* the 5th fret of the 6th, so no pitch detector can tell which string
+a pick struck. A "hit" therefore means the note is reachable on the target
+string within the allowed frets. `overlappingStrings` computes which other
+strings could have produced the same note, and the panel surfaces it — open low
+E is unambiguous and shows nothing; open G reports that strings 4, 5 and 6 can
+sound the same note.
+
+**Two decisions worth recording.**
+
+*Rounded-semitone boundaries.* The near-miss test first compared raw fractional
+MIDI against integer bounds, which put a decision boundary exactly on a
+floating-point value: `frequencyToMidi(midiToFrequency(42))` can land on
+42.0000000001 and flip a verdict from `off_pitch` to `wrong_string`. A test at
+exactly two semitones caught it. The comparison now rounds to the nearest
+semitone first, which both removes the knife-edge and states the intent better —
+the boundary sits halfway between two notes rather than on one.
+
+*No emoji in verdicts.* The brief suggested "Hit! ✅" and similar. Colour already
+carries the verdict, and a bare emoji renders as a tofu box wherever no colour
+emoji font is installed — the same reason Task 2 draws the app mark as SVG
+instead of setting 🎸. The verdicts are plain text on coloured panels.
+
+**Pages trade-off, accepted deliberately.** `continue-on-error` on `deploy-pages`
+also swallows genuine deployment failures, so while the guard is on a green run
+does not prove the site published. Both steps carry comments saying where to
+remove the guard once Pages is enabled and a deploy has succeeded.
+
+**How it was tested.** The grader was bundled with esbuild and exercised under
+Node across 107 assertions: every open-string frequency checked against its
+published value; each of the six open strings hitting its own target; all thirty
+cross-pairs of open strings correctly rejected; fret-range bands; configurable
+tolerance; malformed input (null, zero, negative, NaN, Infinity, low clarity);
+reversed and negative fret ranges normalised; purity and determinism; and a
+semitone sweep pinning the whole verdict map as contiguous
+`wrong | off | hit | off | wrong`.
+
+The UI was then driven in headless Chrome with generated WAVs fed through
+`--use-file-for-fake-audio-capture`, targeting string 6 open: an 82.41 Hz tone
+gave "Hit! / E2 (82.4 Hz) / 0 cents", a 329.63 Hz tone gave "Wrong string / E4 /
++2400 cents", and a 77.78 Hz tone (a semitone flat) gave "Right string, off
+pitch / D#2 / −100 cents". Stopping returned the panel to idle and logged the
+microphone release in all three runs. Offline: with the preview server killed
+and the page reloaded from the service worker cache, all three panels rendered
+and the drill still graded an open low E correctly. The tuner and the drill were
+also confirmed to run at the same time without interfering.
+
+Not verified: a real guitar through a real microphone. Synthetic tones are
+cleaner than a pickup, so expect lower clarity values in practice.

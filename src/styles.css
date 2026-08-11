@@ -431,6 +431,109 @@ code {
   color: var(--error);
 }
 
+/* String Sniper ----------------------------------------------------------- */
+
+.field {
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+}
+
+.field__label {
+  padding: 0;
+  margin-bottom: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+}
+
+.segmented--wrap {
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.segmented__option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background-color 0.12s ease;
+}
+
+.segmented__option:hover {
+  border-color: var(--accent-soft);
+}
+
+.segmented__option:focus-visible {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 2px;
+}
+
+.segmented__option--active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--text);
+}
+
+.segmented__index {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.segmented__name {
+  font-size: 0.68rem;
+  font-weight: 500;
+}
+
+.verdict {
+  margin: 16px 0;
+  padding: 20px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  text-align: center;
+  font-size: 1.25rem;
+  font-weight: 700;
+  transition: color 0.12s ease, border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.verdict--hit {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+}
+
+.verdict--wrong {
+  color: var(--error);
+  border-color: color-mix(in srgb, var(--error) 45%, transparent);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+}
+
+.verdict--off {
+  color: var(--pending);
+  border-color: color-mix(in srgb, var(--pending) 45%, transparent);
+  background: color-mix(in srgb, var(--pending) 10%, transparent);
+}
+
+.verdict--idle {
+  color: var(--text-muted);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
 /* Tuner ------------------------------------------------------------------- */
 
 .tuner {

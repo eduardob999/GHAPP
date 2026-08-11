@@ -7,6 +7,7 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { recordPracticePing } from '../storage/userState';
 import { PracticePanel } from './PracticePanel';
+import { StringSniperPanel } from './StringSniperPanel';
 import { SyncBadge } from './SyncBadge';
 import { TunerPanel } from './TunerPanel';
 
@@ -84,6 +85,8 @@ export function Dashboard({ user }: DashboardProps) {
         <PracticePanel user={user} />
 
         <TunerPanel />
+
+        <StringSniperPanel />
 
         <section className="card">
           <div className="card__header">
