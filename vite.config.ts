@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { build as esbuild } from 'esbuild';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -18,6 +19,9 @@ const base = process.env['VITE_BASE_PATH'] ?? './';
 const SHELL_ASSETS = [
   'index.html',
   'manifest.webmanifest',
+  // Precached so the worklet is available offline; without it the DSP engine
+  // silently falls back to main-thread analysis with no network.
+  'audio-dsp-worklet.js',
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/maskable-512.png',
@@ -71,9 +75,61 @@ function serviceWorkerManifest(): Plugin {
   };
 }
 
+/**
+ * Bundles the AudioWorklet to a standalone file.
+ *
+ * `audioWorklet.addModule` takes a URL and loads it into a scope with no module
+ * resolution of its own, so the worklet cannot import from the app graph — it
+ * has to arrive pre-bundled. Doing it here rather than hand-maintaining a
+ * second copy of the DSP in `public/` keeps `dspCore.ts` the single source of
+ * truth for both the worklet and the main-thread fallback.
+ */
+function dspWorklet(): Plugin {
+  const entry = resolve(import.meta.dirname, 'src/audio/worklet/dspWorklet.ts');
+  const publicPath = '/audio-dsp-worklet.js';
+
+  async function bundle(): Promise<string> {
+    const result = await esbuild({
+      entryPoints: [entry],
+      bundle: true,
+      format: 'iife',
+      target: 'es2022',
+      write: false,
+      logLevel: 'warning',
+    });
+    return result.outputFiles[0]?.text ?? '';
+  }
+
+  return {
+    name: 'gpc:dsp-worklet',
+
+    // Dev: serve it on demand so edits to dspCore are picked up on reload.
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (!req.url || !req.url.startsWith(publicPath)) return next();
+        bundle().then(
+          (code) => {
+            res.setHeader('Content-Type', 'text/javascript');
+            res.end(code);
+          },
+          (error: unknown) => {
+            console.error('[dsp-worklet] bundle failed', error);
+            res.statusCode = 500;
+            res.end('');
+          },
+        );
+      });
+    },
+
+    async generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'audio-dsp-worklet.js', source: await bundle() });
+    },
+  };
+}
+
 export default defineConfig({
   base,
-  plugins: [react(), serviceWorkerManifest()],
+  plugins: [react(), dspWorklet(), serviceWorkerManifest()],
   build: {
     target: 'es2022',
     sourcemap: true,

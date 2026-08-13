@@ -231,3 +231,30 @@ up to moderate noise and silent beyond it — never wrong.
 
 Chord Hero deliberately writes nothing to Firestore yet. Feeding progression
 performance into the spaced scheduler is the obvious next step.
+
+## Task 8 — AudioWorklet DSP + latency tuning ✅
+
+Analysis moved to the audio thread, and the windows retuned by measurement.
+
+- **`src/audio/dspCore.ts`** — the analysis loop, shared verbatim by the worklet
+  and the main-thread fallback. Ring buffer allocated once; nothing allocates
+  inside the audio callback.
+- **`src/audio/worklet/dspWorklet.ts`** — the processor, bundled to a standalone
+  file by a Vite plugin so it can import the same `dspCore` rather than being a
+  second copy of the DSP. Precached, so it works offline.
+- **`src/audio/dspEngine.ts`** — one microphone, one pipeline, many consumers,
+  with automatic fallback to the Task 2 main-thread engine.
+- **Hooks** — `usePitchDetector`, `useChordDetector` and `useStringSniper` all
+  read from the shared engine. Public APIs unchanged; all three panels were
+  untouched.
+
+**Where the lag actually was.** Measured first: `detectChord` costs 0.7 ms and
+runs eight times a second, so the main thread was never short of CPU. The delay
+was structural — a 371 ms window, analysed every 180 ms, published only after
+two consecutive agreeing frames, up to ~700 ms end to end. A 186 ms window
+measures *exactly as accurate* as 371 ms, and two-of-three agreement replaces
+two-consecutive, bringing the worst case to roughly 300 ms.
+
+The worklet's contribution is consistency rather than speed: analysis no longer
+shares a thread with React, garbage collection or layout, and no longer stops
+when the tab is hidden.

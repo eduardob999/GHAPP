@@ -1,29 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  AudioEngineError,
-  createAudioEngine,
-  type AudioEngine,
-} from '../audio/audioEngine';
+import { AudioEngineError } from '../audio/audioEngine';
+import { createDspEngine, type DspEngine, type DspFrame } from '../audio/dspEngine';
 import {
   DEFAULT_CHORD_CONFIG,
-  detectChord,
   type ChordDetectionConfig,
   type ChordDetectionResult,
+  type ChordQuality,
   type DetectedChord,
 } from '../audio/chordDetection';
 
 /**
  * Live chord recognition.
  *
- * Runs the audio engine in raw-frame mode: no pitch detection, and a much
- * larger analysis window than the tuner. `AnalyserNode.getFloatTimeDomainData`
- * always hands back the most recent `fftSize` samples, so the window is
- * inherently contiguous and no ring buffer of our own is needed.
+ * Analysis happens on the audio thread via the shared DSP engine; this hook
+ * only smooths what arrives.
  *
- * Frames are smoothed before they reach the UI. A single window straddling a
- * chord change contains both chords and matches neither well, so raw
- * frame-by-frame output flickers; requiring agreement across consecutive
- * frames trades a little latency for a reading that holds still.
+ * Latency budget, which is what this was all for. Previously: a 371 ms window,
+ * analysed every 180 ms, published only after two consecutive agreeing frames —
+ * up to ~700 ms before a chord change showed up. Now: a 186 ms window (measured
+ * to be exactly as accurate), analysed every 120 ms, published on the first
+ * frame that agrees with a recent one. Worst case is roughly 300 ms, and the
+ * cadence no longer wobbles with main-thread load.
+ *
+ * Some agreement is still required. A window straddling a chord change contains
+ * both chords and matches neither well, so publishing raw frames flickers at
+ * every transition.
  */
 
 export interface ChordDetectorState {
@@ -40,21 +41,17 @@ export interface ChordDetectorState {
 }
 
 /**
- * Window length in samples. 16384 spans ~370 ms at 44.1 kHz, which is long
- * enough to resolve a semitone at the bottom of the guitar's range (a little
- * under 5 Hz apart at the low E) and to catch a whole arpeggio figure, while
- * still updating several times a second.
+ * How many of the last few frames must agree before a chord is published.
+ *
+ * Two-of-three rather than two-consecutive: an isolated bad frame in the middle
+ * of a steadily held chord no longer resets the count, so a chord that is
+ * genuinely sounding is not delayed by one unlucky window.
  */
-const ANALYSIS_FFT_SIZE = 16384;
-
-/** Detection cadence. Analysis is far too costly to run on every rAF tick. */
-const DETECT_INTERVAL_MS = 180;
-
-/** Consecutive agreeing frames before a chord is published. */
-const STABLE_FRAMES = 2;
+const AGREEMENT_WINDOW = 3;
+const AGREEMENT_REQUIRED = 2;
 
 /** How long a published chord survives once the sound stops. */
-const HOLD_MS = 700;
+const HOLD_MS = 600;
 
 function sameChord(a: DetectedChord | null, b: DetectedChord | null): boolean {
   if (a === null || b === null) return a === b;
@@ -68,42 +65,50 @@ export function useChordDetector(): ChordDetectorState {
   const [currentResult, setCurrentResult] = useState<ChordDetectionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const engineRef = useRef<AudioEngine | null>(null);
+  const engineRef = useRef<DspEngine | null>(null);
   const configRef = useRef<ChordDetectionConfig>(DEFAULT_CHORD_CONFIG);
-  const lastAnalysisRef = useRef(0);
-  const pendingRef = useRef<{ chord: DetectedChord | null; count: number }>({
-    chord: null,
-    count: 0,
-  });
+  const recentRef = useRef<(DetectedChord | null)[]>([]);
   const publishedAtRef = useRef(0);
 
-  const handleFrame = useCallback((buffer: Float32Array, sampleRate: number) => {
-    const now = performance.now();
-    if (now - lastAnalysisRef.current < DETECT_INTERVAL_MS) return;
-    lastAnalysisRef.current = now;
+  const handleFrame = useCallback((frame: DspFrame) => {
+    const chordFrame = frame.chord;
+    if (!chordFrame) return;
 
-    const result = detectChord(buffer, sampleRate, configRef.current);
-    setCurrentResult(result);
+    const candidate: DetectedChord | null =
+      chordFrame.root !== null && chordFrame.quality !== null
+        ? {
+            root: chordFrame.root,
+            quality: chordFrame.quality as ChordQuality,
+            confidence: chordFrame.confidence,
+            activePitchClasses: [],
+            noteCount: 0,
+          }
+        : null;
 
-    const candidate = result.chord;
-    const pending = pendingRef.current;
+    setCurrentResult({
+      chord: candidate,
+      noiseLevel: chordFrame.noiseLevel,
+      clarity: chordFrame.clarity,
+    });
 
-    if (sameChord(candidate, pending.chord)) {
-      pending.count += 1;
-    } else {
-      pending.chord = candidate;
-      pending.count = 1;
+    const recent = recentRef.current;
+    recent.push(candidate);
+    if (recent.length > AGREEMENT_WINDOW) recent.shift();
+
+    // Publish the first chord that at least two of the last three frames agree
+    // on — the newest one wins ties, so a genuine change is picked up promptly.
+    if (candidate) {
+      const agreeing = recent.filter((c) => sameChord(c, candidate)).length;
+      if (agreeing >= AGREEMENT_REQUIRED) {
+        publishedAtRef.current = frame.timestamp;
+        setCurrentChord((previous) => (sameChord(previous, candidate) ? previous : candidate));
+        return;
+      }
     }
 
-    if (candidate !== null && pending.count >= STABLE_FRAMES) {
-      publishedAtRef.current = now;
-      setCurrentChord((previous) => (sameChord(previous, candidate) ? previous : candidate));
-      return;
-    }
-
-    // Nothing convincing right now. Keep showing the last chord briefly so a
-    // decaying strum does not blink out mid-ring.
-    if (candidate === null && now - publishedAtRef.current > HOLD_MS) {
+    // Nothing convincing. Hold the last chord briefly so a decaying strum does
+    // not blink out mid-ring.
+    if (!candidate && frame.timestamp - publishedAtRef.current > HOLD_MS) {
       setCurrentChord((previous) => (previous === null ? previous : null));
     }
   }, []);
@@ -111,8 +116,7 @@ export function useChordDetector(): ChordDetectorState {
   const stop = useCallback(() => {
     engineRef.current?.stop();
     engineRef.current = null;
-    pendingRef.current = { chord: null, count: 0 };
-    lastAnalysisRef.current = 0;
+    recentRef.current = [];
     publishedAtRef.current = 0;
     setIsRunning(false);
     setIsStarting(false);
@@ -121,7 +125,7 @@ export function useChordDetector(): ChordDetectorState {
   }, []);
 
   const reset = useCallback(() => {
-    pendingRef.current = { chord: null, count: 0 };
+    recentRef.current = [];
     publishedAtRef.current = 0;
     setCurrentChord(null);
     setCurrentResult(null);
@@ -136,22 +140,26 @@ export function useChordDetector(): ChordDetectorState {
       setIsStarting(true);
       reset();
 
-      const engine = createAudioEngine({
-        fftSize: ANALYSIS_FFT_SIZE,
-        detectPitch: false,
-        onFrame: handleFrame,
+      const engine = createDspEngine({
         onDeviceLost: (deviceError) => {
           setError(deviceError.message);
           stop();
         },
       });
       engineRef.current = engine;
+      engine.subscribe(handleFrame);
 
       try {
-        await engine.start();
+        await engine.start({
+          pitchEnabled: false,
+          chordEnabled: true,
+          chordMinClarity: configRef.current.minClarity,
+        });
         setIsStarting(false);
         setIsRunning(true);
-        console.info('[chord] Detector started.');
+        console.info(
+          `[chord] Detector started (${engine.usingWorklet() ? 'audio thread' : 'main thread'}).`,
+        );
       } catch (startError: unknown) {
         const audioError =
           startError instanceof AudioEngineError

@@ -477,3 +477,72 @@ the `audioEngine` change and still reports A2 at 110.0 Hz with a clean teardown.
 cleaner and more stationary than a pickup in a room, so expect lower clarity and
 more `null` frames in practice; `minClarity` in `DEFAULT_CHORD_CONFIG` is the
 single knob to loosen if it proves shy.
+
+## Task 8: AudioWorklet DSP engine + latency tuning
+
+**Goal.** Chord and audio feedback felt slow. Move the DSP off the main thread
+into an AudioWorklet, shorten the analysis windows, and make feedback arrive
+quickly and consistently — without making recognition less reliable.
+
+**Measure first.** Two measurements shaped everything:
+
+1. `detectChord` costs **0.7 ms per call** at a 200 ms window — about **0.56% of
+   one core** at an eight-per-second cadence. The main thread was never the
+   bottleneck, so the worklet alone would not have fixed the feel.
+2. Sweeping the window against the synthetic bench: **400 ms and 200 ms score
+   identically** (13/13 clean, 39/39 noisy, zero wrong), while 150 ms drops to
+   11/13 *with wrong answers*, and 80 ms fails entirely. At 4096 samples a
+   spectral bin is 10.8 Hz and a semitone at the low E is 4.9 Hz — the
+   resolution simply is not there.
+
+So 8192 samples (~186 ms) is the shortest window that costs no accuracy, and it
+halves the dominant term in the perceived lag.
+
+**Latency budget.**
+
+| | Before | After |
+| --- | --- | --- |
+| Chord window | 371 ms | 186 ms |
+| Analysis cadence | 180 ms | 120 ms |
+| Publish rule | 2 consecutive | 2 of last 3 |
+| Worst case | ~700 ms | ~300 ms |
+
+Pitch went from a ~40 ms rAF tick to a 30 ms audio-thread cadence, with the
+tuner hold cut from 600 ms to 500 ms.
+
+**Key components.**
+
+- **`src/audio/dspCore.ts`** — ring buffer plus the pitch and chord schedules,
+  pure enough to run inside `AudioWorkletGlobalScope`. Allocation-free in the
+  hot path: `process()` fires ~344 times a second, and allocating there would
+  drip work onto the one thread that must not stall.
+- **`src/audio/worklet/dspWorklet.ts`** + a `gpc:dsp-worklet` Vite plugin that
+  esbuild-bundles it to `dist/audio-dsp-worklet.js` and serves it in dev.
+  `addModule` takes a URL and cannot resolve app modules, so the worklet must
+  arrive pre-bundled; doing it in the build keeps `dspCore` the single source of
+  truth instead of a hand-maintained copy in `public/`.
+- **`src/audio/dspEngine.ts`** — mic, context, worklet node wired through a
+  zero-gain sink (a worklet only runs while its graph is pulled toward a
+  destination), message fan-out, and the fallback.
+- **`audioEngine.ts`** — exported `MIC_CONSTRAINTS` and `toAudioEngineError` so
+  the fallback reuses the same error mapping. No behaviour change.
+
+**Bug found by the browser test.** The feature check read
+`AudioContext.prototype.audioWorklet`, which invokes the getter with the
+prototype as `this` and throws "Illegal invocation" in Chrome — so *every*
+start failed with a generic "Could not start the microphone". It now uses
+`'audioWorklet' in AudioContext.prototype`, which does not invoke the getter.
+
+**How it was tested.** The synthetic chord suite was re-run unchanged and at the
+new production window: 12/12 clean, 36/36 under noise, zero wrong, and 0/20 pure
+noise trials producing a chord. In headless Chrome with fake audio input: the
+tuner reads A2 within 432 ms of the click (including microphone acquisition and
+worklet load), String Sniper returns a verdict in 214 ms, and Chord Hero
+recognises a strummed G in 483 ms and scores the run "1 of 4 chords hit" —
+byte-identical to Task 7, confirming no accuracy regression. The fallback was
+exercised by deleting `AudioWorkletNode` before page load: it logs "Started on
+the main thread", still recognises the chord, and raises no exceptions.
+
+**Not verified.** A real guitar and microphone, and the worklet on Safari/iOS.
+CPU was not profiled in-browser; the 0.56%-of-a-core figure is from Node and
+should be treated as an order of magnitude, not a measurement of the phone.

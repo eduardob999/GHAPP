@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  AudioEngineError,
-  createAudioEngine,
-  type AudioEngine,
-  type PitchSample,
-} from '../audio/audioEngine';
+import { AudioEngineError } from '../audio/audioEngine';
+import { createDspEngine, type DspEngine, type DspFrame } from '../audio/dspEngine';
 import { frequencyToNote } from '../audio/notes';
 import {
   evaluateSniperFrame,
@@ -15,10 +11,13 @@ import {
 /**
  * Audio binding for the String Sniper drill.
  *
- * Runs its own `AudioEngine` rather than reusing `usePitchDetector`. The tuner's
- * hook is tuned for a steady readout — a 5-sample median and a 600 ms hold —
- * which is the right feel for tuning and the wrong one for grading individual
- * pick attacks. Keeping them separate also means this cannot regress the tuner.
+ * Reads pitch frames from the shared DSP engine, but keeps its own smoothing:
+ * the tuner is tuned for a steady readout, which is the wrong feel for grading
+ * individual pick attacks.
+ *
+ * Frames now arrive on the audio thread's clock at ~30 ms rather than on a
+ * `requestAnimationFrame` tick, so a verdict lands roughly a frame-and-a-half
+ * after the attack instead of waiting on whatever the UI was busy with.
  */
 
 export interface SniperDetection {
@@ -43,9 +42,9 @@ export interface StringSniperState {
 }
 
 /**
- * A pick attack reliably throws one octave-up outlier before the note settles —
- * the same effect the tuner smooths. Three samples (~120 ms) is enough for a
- * median to discard it while staying quick enough to feel immediate.
+ * A pick attack reliably throws one octave-up outlier before the note settles.
+ * Three frames at the engine's ~30 ms cadence is under 100 ms — enough for a
+ * median to discard the outlier, quick enough to feel immediate.
  */
 const SMOOTHING_WINDOW = 3;
 
@@ -82,23 +81,24 @@ export function useStringSniper(): StringSniperState {
   const [lastDetected, setLastDetected] = useState<SniperDetection>(EMPTY_DETECTION);
   const [error, setError] = useState<string | null>(null);
 
-  const engineRef = useRef<AudioEngine | null>(null);
+  const engineRef = useRef<DspEngine | null>(null);
   // Read inside the audio callback, so changing target does not resubscribe.
   const configRef = useRef<StringSniperConfig | null>(null);
   const historyRef = useRef<number[]>([]);
   const lastPitchAtRef = useRef(0);
 
-  const handleSample = useCallback((sample: PitchSample) => {
+  const handleSample = useCallback((frame: DspFrame) => {
     const config = configRef.current;
-    if (!config) return;
+    const sample = frame.pitch;
+    if (!config || !sample) return;
 
     if (sample.frequency !== null) {
       historyRef.current.push(sample.frequency);
       if (historyRef.current.length > SMOOTHING_WINDOW) {
         historyRef.current.shift();
       }
-      lastPitchAtRef.current = sample.timestamp;
-    } else if (sample.timestamp - lastPitchAtRef.current > RESULT_HOLD_MS) {
+      lastPitchAtRef.current = frame.timestamp;
+    } else if (frame.timestamp - lastPitchAtRef.current > RESULT_HOLD_MS) {
       historyRef.current = [];
     }
 
@@ -157,7 +157,7 @@ export function useStringSniper(): StringSniperState {
       configRef.current = config;
       setCurrentConfig(config);
 
-      const engine = createAudioEngine({
+      const engine = createDspEngine({
         onDeviceLost: (deviceError) => {
           setError(deviceError.message);
           stop();
@@ -167,7 +167,7 @@ export function useStringSniper(): StringSniperState {
       engine.subscribe(handleSample);
 
       try {
-        await engine.start();
+        await engine.start({ pitchEnabled: true, chordEnabled: false });
         setIsStarting(false);
         setIsRunning(true);
         console.info('[sniper] Drill started:', config);

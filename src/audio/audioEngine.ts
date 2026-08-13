@@ -94,7 +94,7 @@ const DEFAULT_MIN_INTERVAL_MS = 40;
  * AGC pumps the level of a decaying string, and noise suppression treats a
  * sustained note as stationary noise and gates it. All three are switched off.
  */
-const MIC_CONSTRAINTS: MediaStreamConstraints = {
+export const MIC_CONSTRAINTS: MediaStreamConstraints = {
   audio: {
     echoCancellation: false,
     noiseSuppression: false,
@@ -104,7 +104,7 @@ const MIC_CONSTRAINTS: MediaStreamConstraints = {
   video: false,
 };
 
-function toAudioEngineError(error: unknown): AudioEngineError {
+export function toAudioEngineError(error: unknown): AudioEngineError {
   if (error instanceof AudioEngineError) {
     return error;
   }
