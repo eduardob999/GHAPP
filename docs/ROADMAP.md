@@ -207,3 +207,27 @@ failures go red again. Both steps are commented to say so.
   belongs behind a capability check.
 - **All data keyed by uid.** No device-local source of truth, so a second device
   is never a second account.
+
+## Task 7 — Chord Hero ✅
+
+Polyphonic chord recognition, and a progression game built on it.
+
+- **`src/audio/chordDetection.ts`** — pure DSP: Hann window → self-contained
+  radix-2 FFT → median noise floor → soft threshold and peak picking →
+  12-bin chroma → cosine similarity against 10 chord templates × 12 roots.
+  No dependencies, no Web Audio, so it runs and is tested under Node.
+- **`useChordDetector`** — the audio engine in raw-frame mode at a 16384-sample
+  window, with consecutive-frame agreement before a chord is published.
+- **`src/domain/progressions.ts`** — four seed progressions (open, blues, barre,
+  arpeggiated) plus pure stepping and scoring.
+- **`ChordHeroPanel`** — HUD with current and next chord, a beat bar, the chord
+  diagram reused from the shape trainer, live recognition feedback, and a
+  per-chord summary.
+
+**Tuned to shrug rather than guess.** Recognition is gated on how much of the
+spectrum is broadband noise, not just on template similarity, so a confident
+match on a noisy signal still reports nothing. On synthetic tests it is correct
+up to moderate noise and silent beyond it — never wrong.
+
+Chord Hero deliberately writes nothing to Firestore yet. Feeding progression
+performance into the spaced scheduler is the obvious next step.

@@ -406,3 +406,74 @@ Fixed in three places:
 Verified both ways on a clean browser profile: built with empty env vars the app
 shows "Finish the Firebase setup" with no exceptions; built with populated ones
 it reaches the sign-in screen with no exceptions.
+
+## Task 7: Chord Hero — progression gameplay with chord recognition
+
+**Goal.** Move from single-note detection to polyphonic chord recognition, and
+put a rhythm-game loop on top: a progression plays out in time, each chord is
+scored by ear, strummed or arpeggiated. Robustness over vocabulary — a detector
+that feels random is worse than one with fewer chords.
+
+**Key components.**
+
+- **`src/audio/chordDetection.ts`** — the whole recogniser, pure and
+  dependency-free: Hann window, a hand-written radix-2 FFT, a median-based noise
+  floor, soft thresholding with peak picking, parabolic interpolation for
+  sub-bin frequency accuracy, a 12-bin pitch-class profile, and cosine
+  similarity against 10 templates across 12 roots.
+- **`src/hooks/useChordDetector.ts`** — audio binding. Runs the engine in
+  raw-frame mode with a 16384-sample window (~370 ms), analysing every 180 ms
+  and requiring two consecutive agreeing frames before publishing.
+- **`src/domain/progressions.ts`** — progression model, four seed progressions,
+  and pure stepping/scoring including the `partial` grade for a right root with
+  the wrong quality.
+- **`src/components/ChordHeroPanel.tsx`** — the game.
+- **`src/audio/audioEngine.ts`** — extended, not rewritten, with two optional
+  fields: `detectPitch: false` and `onFrame`. Chord detection wants raw windows
+  and no pitch tracking; running McLeod on a 16384-sample frame would be pure
+  waste. Defaults keep the tuner and String Sniper behaviour identical.
+
+**Design decisions worth recording.**
+
+*Peaks only, and gate on noise.* Summing every FFT bin into the chroma smears
+harmonics into something that matches every template about equally; only
+spectral peaks contribute. And the accept/reject decision uses
+`clarity = similarity × (1 − noiseLevel)` rather than similarity alone, because
+template matching alone is happy to label pure noise.
+
+*Grade the window, not the instant.* A strum rings, decays and gets damped, and
+an arpeggio only spells its chord once the last note lands. Each chord is graded
+on the best moment inside its scoring window, which is also what makes arpeggios
+work with no separate code path — multi-frame aggregation is the same mechanism.
+
+**Two bugs the end-to-end test caught.** Observations were originally collected
+in an effect keyed on the detected chord changing — but a chord held steady never
+changes, so a whole segment recorded one observation and later chords none; the
+summary read "1 of 1 chords hit" instead of "1 of 4". Sampling now runs off the
+clock. Separately, the live read-out was coloured green whenever *any* chord was
+recognised, so a confidently wrong chord looked like approval; it is now coloured
+by whether it matches the target.
+
+**How it was tested.** The recogniser was bundled and exercised under Node
+against synthetic harmonic-rich voicings: 12/12 clean open-position chords
+correct including maj/min, 7ths and a power chord; 6/6 on chords sharing two
+notes (G/Em, C/Am, F/Dm) which are the classic confusions; 4/4 barre voicings up
+the neck; inversions correctly resolved to the root. Noise sweeps show correct
+detection to a noise amplitude of ~0.15 and `null` beyond, never a wrong label;
+pure noise returned `null` on every trial, as did silence and single notes.
+40/40 correct under moderate noise across four chords.
+
+The progression layer has 32 assertions covering catalog integrity, timing at
+different tempos, stepping in order with exact segment boundaries, per-detection
+and per-window scoring, and late-resolving arpeggio windows.
+
+The panel was then driven in headless Chrome with a synthetic strummed open G
+fed in as the microphone: the HUD, beat bar, diagram and live recognition all
+worked, and the run scored "1 of 4 chords hit" with G a hit and D, Em and C
+misses — exactly right for a G ringing throughout. The tuner was re-tested after
+the `audioEngine` change and still reports A2 at 110.0 Hz with a clean teardown.
+
+**Not verified.** A real guitar through a real microphone. Synthetic tones are
+cleaner and more stationary than a pickup in a room, so expect lower clarity and
+more `null` frames in practice; `minClarity` in `DEFAULT_CHORD_CONFIG` is the
+single knob to loosen if it proves shy.

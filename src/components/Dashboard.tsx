@@ -6,6 +6,7 @@ import { persistenceStatus } from '../firebase';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { recordPracticePing } from '../storage/userState';
+import { ChordHeroPanel } from './ChordHeroPanel';
 import { PracticePanel } from './PracticePanel';
 import { ShapeTrainerPanel } from './ShapeTrainerPanel';
 import { StringSniperPanel } from './StringSniperPanel';
@@ -95,6 +96,8 @@ export function Dashboard({ user }: DashboardProps) {
           requestedSkillId={trainerSkillId}
           onRequestHandled={handleTrainerRequestHandled}
         />
+
+        <ChordHeroPanel />
 
         <TunerPanel />
 

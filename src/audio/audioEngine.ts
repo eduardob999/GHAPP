@@ -60,6 +60,18 @@ export interface AudioEngineOptions {
    */
   minIntervalMs?: number;
   detector?: PitchDetectorOptions;
+  /**
+   * Set false for consumers that only want raw audio frames. Skips building
+   * the pitch detector entirely — which matters at the large `fftSize` chord
+   * detection needs, where running McLeod on every frame would be pure waste.
+   * When false, `subscribe` listeners never fire; use `onFrame` instead.
+   */
+  detectPitch?: boolean;
+  /**
+   * Raw time-domain window, straight from the AnalyserNode, once per analysis
+   * tick. The buffer is reused between calls — copy it if you need to keep it.
+   */
+  onFrame?: (buffer: Float32Array, sampleRate: number) => void;
   /** Called if the microphone disappears mid-session (unplugged, taken over). */
   onDeviceLost?: (error: AudioEngineError) => void;
 }
@@ -209,11 +221,18 @@ export function createAudioEngine(options: AudioEngineOptions = {}): AudioEngine
     }
     lastAnalysisAt = now;
 
-    if (!analyser || !buffer || !detector) {
+    if (!analyser || !buffer || !context) {
       return;
     }
 
     analyser.getFloatTimeDomainData(buffer);
+    options.onFrame?.(buffer, context.sampleRate);
+
+    // Raw-frame consumers stop here; there is no pitch to report.
+    if (!detector) {
+      return;
+    }
+
     const { frequency, clarity } = detector.analyze(buffer);
 
     emit({ frequency, clarity, rms: computeRms(buffer), timestamp: now });
@@ -277,14 +296,17 @@ export function createAudioEngine(options: AudioEngineOptions = {}): AudioEngine
       // the speakers would feed back.
 
       buffer = new Float32Array(analyser.fftSize);
-      detector = createPitchDetector(analyser.fftSize, context.sampleRate, options.detector ?? {});
+      detector =
+        options.detectPitch === false
+          ? null
+          : createPitchDetector(analyser.fftSize, context.sampleRate, options.detector ?? {});
 
       state = 'running';
       lastAnalysisAt = 0;
       frameHandle = requestAnimationFrame(tick);
 
       console.info(
-        `[audio] Tuner started at ${context.sampleRate} Hz, ${analyser.fftSize}-sample window.`,
+        `[audio] Engine started at ${context.sampleRate} Hz, ${analyser.fftSize}-sample window.`,
       );
     } catch (error) {
       state = 'idle';
@@ -300,7 +322,7 @@ export function createAudioEngine(options: AudioEngineOptions = {}): AudioEngine
 
     state = 'idle';
     releaseResources();
-    console.info('[audio] Tuner stopped, microphone released.');
+    console.info('[audio] Engine stopped, microphone released.');
   }
 
   return {

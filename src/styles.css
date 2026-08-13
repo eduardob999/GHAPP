@@ -431,6 +431,103 @@ code {
   color: var(--error);
 }
 
+/* Chord Hero -------------------------------------------------------------- */
+
+.chordlist {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.chordlist__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--text-muted) 6%, transparent);
+}
+
+.chordlist__name {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.chordlist__mode {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: capitalize;
+}
+
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 8px 0 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.hero__now,
+.hero__next {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hero__next {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.hero__label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.hero__chord {
+  font-size: 2.6rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.hero__chord--next {
+  font-size: 1.5rem;
+  color: var(--text-muted);
+}
+
+.hero__mode {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.beatbar {
+  height: 8px;
+  margin-bottom: 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 20%, transparent);
+  overflow: hidden;
+}
+
+.beatbar__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.09s linear;
+}
+
 /* Fretting trainer -------------------------------------------------------- */
 
 .diagram {
