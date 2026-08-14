@@ -36,8 +36,11 @@ always the next thing to do.
       shape in half-step-down tuning is what the detector hears as E♭ — with
       the shape to grab carried alongside it in `shapeLabel`. 65 progressions,
       296 steps.
-- [ ] **7. Adorable.** Companion character, streak rewards, sound design.
-      Milestone 5.
+- [x] **7. Adorable.** Companion character with eight moods, streak rewards
+      counted from the session log, and reward chimes pitched above the 1800 Hz
+      analysis band so they cannot be scored. Mood precedence is the design:
+      a milestone outranks everything, and what just happened outranks the
+      ambient state.
 
 ## Ground rules
 
