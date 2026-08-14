@@ -326,6 +326,12 @@ code {
   background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 
+.notice--warn {
+  color: var(--pending);
+  border-color: color-mix(in srgb, var(--pending) 40%, transparent);
+  background: color-mix(in srgb, var(--pending) 10%, transparent);
+}
+
 .notice--muted {
   color: var(--text-muted);
 }

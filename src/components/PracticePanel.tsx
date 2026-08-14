@@ -4,7 +4,7 @@ import { useSkillStates } from '../hooks/useSkillStates';
 import { upsertSkillPracticeState } from '../storage/skillsState';
 import { fullCatalog, planSession, type PlannedItem } from '../domain/sessionPlanner';
 import { hasDiagram } from '../domain/shapeTrainer';
-import { progressionIdFromSkillId } from '../domain/progressions';
+import { progressionIdFromSkillId, progressionsForSkill } from '../domain/progressions';
 import {
   CATEGORY_LABELS,
   FAMILY_LABELS,
@@ -194,7 +194,13 @@ export function PracticePanel({
                   ) : null}
 
                   {(() => {
-                    const progressionId = progressionIdFromSkillId(definition.id);
+                    // Two routes into Chord Hero: a progression card *is* a
+                    // progression, and a hand-written picking skill may have a
+                    // riff written to drill it.
+                    const progressionId =
+                      progressionIdFromSkillId(definition.id) ??
+                      progressionsForSkill(definition.id)[0]?.id;
+
                     return onOpenInChordHero && progressionId ? (
                       <button
                         type="button"

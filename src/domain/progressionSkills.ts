@@ -1,6 +1,8 @@
 import {
   PROGRESSIONS,
+  needsRetuning,
   progressionSkillId,
+  tuningOf,
   type ChordProgression,
 } from './progressions';
 import type { DifficultyLevel, MicroSkillDefinition } from './skills';
@@ -35,9 +37,14 @@ function toSkill(progression: ChordProgression): MicroSkillDefinition {
     family: 'progression',
     difficulty: LEVEL_TO_DIFFICULTY[progression.level],
     title: progression.title,
-    description:
+    description: (
       `${progression.description ?? ''} Play it through in Chord Hero — ${bars} steps at ` +
-      `${progression.tempoBpm} bpm.`.trim(),
+      `${progression.tempoBpm} bpm` +
+      // A card that needs the guitar re-tuned has to say so on the card: the
+      // scheduler can offer it at any point in a session, and finding out after
+      // you have started is worse than not being offered it.
+      `${needsRetuning(progression) ? ` in ${tuningOf(progression).name} tuning` : ''}.`
+    ).trim(),
     suggestedDurationSeconds: seconds,
     active: true,
     metadata: {

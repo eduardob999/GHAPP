@@ -21,6 +21,8 @@ import {
   type TimingVerdict,
   gradeFromSummary,
   progressionSkillId,
+  needsRetuning,
+  tuningOf,
   type ChordProgression,
   type ChordScore,
   type ProgressionChord,
@@ -490,6 +492,13 @@ export function ChordHeroPanel({
             </select>
           </label>
 
+          {needsRetuning(progression) ? (
+            <p className="notice notice--warn" data-testid="tuning-notice">
+              <strong>{tuningOf(progression).name}:</strong> {tuningOf(progression).instructions} The
+              tuner on the Dashboard will get you there.
+            </p>
+          ) : null}
+
           {progression.description ? <p className="card__hint">{progression.description}</p> : null}
           {progression.teaches ? (
             <p className="card__hint">
@@ -518,7 +527,10 @@ export function ChordHeroPanel({
             {progression.chords.map((step) => (
               <li key={step.id} className="chordlist__item">
                 <span className="chordlist__name">{stepLabel(step)}</span>
-                <span className="chordlist__mode">{PLAY_MODE_HINTS[step.mode]}</span>
+                <span className="chordlist__mode">
+                  {step.shapeLabel ? `${step.shapeLabel} · ` : ''}
+                  {PLAY_MODE_HINTS[step.mode]}
+                </span>
               </li>
             ))}
           </ol>
@@ -632,7 +644,11 @@ export function ChordHeroPanel({
             <div className="hero__now">
               <span className="hero__label">Now</span>
               <span className="hero__chord">{stepLabel(active.chord)}</span>
-              <span className="hero__mode">{PLAY_MODE_HINTS[active.chord.mode]}</span>
+              <span className="hero__mode">
+                {active.chord.shapeLabel
+                  ? `${active.chord.shapeLabel} · ${PLAY_MODE_HINTS[active.chord.mode]}`
+                  : PLAY_MODE_HINTS[active.chord.mode]}
+              </span>
             </div>
             <div className="hero__next">
               <span className="hero__label">Streak</span>
@@ -661,6 +677,7 @@ export function ChordHeroPanel({
           </div>
 
           <p className="card__hint">
+            {needsRetuning(progression) ? `${tuningOf(progression).name} · ` : ''}
             Step {active.index + 1} of {progression.chords.length}
             {active.chord.positionMetadata
               ? ` · string ${active.chord.positionMetadata.rootString}, fret ${active.chord.positionMetadata.rootFret}`

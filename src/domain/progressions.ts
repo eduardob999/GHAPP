@@ -2,6 +2,7 @@ import { chordPitchClassMask, type ChordQuality } from '../audio/chordDetection'
 import {
   DEFAULT_TUNING,
   TUNINGS,
+  pitchClassOfRoot,
   soundingNote,
   soundingRoot,
   transposeRoot,
@@ -538,6 +539,256 @@ const CORE_PROGRESSIONS: readonly ChordProgression[] = [
              step('em','E','min',OPEN.Em), step('bm','B','min',{string:5,fret:2})],
   },
 ];
+
+// ── Sevenths, through all twelve keys ────────────────────────────────────────
+
+/**
+ * The ii–V–I in every key, generated rather than typed out.
+ *
+ * Twelve near-identical progressions is exactly the kind of data that rots when
+ * hand-written: one transposition slip and a key teaches the wrong cadence.
+ * Deriving them from the root means the shapes are right by construction, and
+ * the only thing that varies is the difficulty — the guitar has opinions about
+ * keys even when the theory does not.
+ */
+const ALL_ROOTS = [
+  'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B',
+] as const;
+
+/** Keys a guitarist meets first. The rest are barre territory, so slower. */
+const FRIENDLY_KEYS: ReadonlySet<string> = new Set(['C', 'D', 'E', 'F', 'G', 'A']);
+
+function rootSlug(root: string): string {
+  return root.replace('#', 's').toLowerCase();
+}
+
+/** Lowest fret where a root sits on the 6th (E) or 5th (A) string. */
+function fretOf(root: string, openPitchClass: number): number {
+  const pc = pitchClassOfRoot(root);
+  return pc === null ? 0 : (((pc - openPitchClass) % 12) + 12) % 12;
+}
+
+const E_STRING = 4;
+const A_STRING = 9;
+
+function seventhCadence(key: string): ChordProgression {
+  const ii = transposeRoot(key, 2);
+  const v = transposeRoot(key, 7);
+  const friendly = FRIENDLY_KEYS.has(key);
+
+  return {
+    id: `prog.sevenths.ii-v-i.${rootSlug(key)}`,
+    title: `Sevenths: ii–V–I in ${key}`,
+    genre: 'Sevenths',
+    level: friendly ? 'intermediate' : 'advanced',
+    tempoBpm: friendly ? 72 : 64,
+    description: `${ii}m7 – ${v}7 – ${key}maj7, then hold the tonic. Rootless voicings are fine — the third and seventh are what carry it.`,
+    teaches: `The ii–V–I in ${key}: where the dominant pulls, and how the same three shapes move round the neck.`,
+    chords: [
+      step('ii', ii, 'min7', { string: 5, fret: fretOf(ii, A_STRING) }),
+      step('v', v, '7', { string: 6, fret: fretOf(v, E_STRING) }),
+      step('i', key, 'maj7', { string: 5, fret: fretOf(key, A_STRING) }),
+      step('i2', key, 'maj7', { string: 5, fret: fretOf(key, A_STRING) }),
+    ],
+  };
+}
+
+export const SEVENTH_KEY_PROGRESSIONS: readonly ChordProgression[] =
+  ALL_ROOTS.map(seventhCadence);
+
+/**
+ * All twelve dominant sevenths in one run, round the circle of fourths.
+ *
+ * Two beats each, so the whole cycle is a single 24-bar lap and you feel the
+ * shapes rather than think about them.
+ */
+const DOMINANT_CYCLE: ChordProgression = {
+  id: 'prog.sevenths.dominant-cycle',
+  title: 'Dominant cycle: all twelve 7th chords',
+  genre: 'Sevenths',
+  level: 'advanced',
+  tempoBpm: 60,
+  description: 'C7 round the circle of fourths and back to C. Two beats each — keep moving.',
+  teaches: 'Every dominant seventh, and that a fourth up is always the next shape along.',
+  chords: Array.from({ length: 12 }, (_, i) => {
+    const root = transposeRoot('C', (i * 5) % 12);
+    return step(`d${i}`, root, '7', {
+      beats: 2,
+      string: i % 2 === 0 ? 6 : 5,
+      fret: fretOf(root, i % 2 === 0 ? E_STRING : A_STRING),
+    });
+  }),
+};
+
+// ── Alternate tunings ────────────────────────────────────────────────────────
+
+/** Shape notes written in standard, sounded a semitone lower. */
+function flatNotes(notes: readonly string[]): string[] {
+  return notes.map((note) => soundingNote(note, 'half-step-down'));
+}
+
+/** A step named by the shape you grab, rooted at the chord that sounds. */
+function shapeStep(
+  id: string,
+  shapeRoot: string,
+  quality: ChordQuality,
+  tuning: TuningId,
+  o: StepOpts = {},
+): ProgressionChord {
+  return step(id, soundingRoot(shapeRoot, tuning), quality, {
+    ...o,
+    label: `${shapeRoot} shape`,
+  });
+}
+
+const TUNING_PROGRESSIONS: readonly ChordProgression[] = [
+  {
+    id: 'prog.dropd.power', title: 'Drop D: one-finger power chords', genre: 'Tunings',
+    level: 'beginner', tempoBpm: 88, tuning: 'drop-d',
+    description: 'D5–F5–G5–C5, each a single finger flat across the bottom three strings.',
+    teaches: 'Why anyone bothers with drop D: the fifth comes for free.',
+    chords: [step('d5','D','5',{mode:'palm-mute',string:6,fret:0}),
+             step('f5','F','5',{mode:'palm-mute',string:6,fret:3}),
+             step('g5','G','5',{mode:'palm-mute',string:6,fret:5}),
+             step('c5','C','5',{mode:'palm-mute',string:6,fret:10})],
+  },
+  {
+    id: 'riff.dropd.low-d', title: 'Drop D: low-string groove', genre: 'Tunings',
+    level: 'beginner', tempoBpm: 80, tuning: 'drop-d',
+    description: 'The open 6th string is now a D, a whole tone below where your ear expects it.',
+    teaches: 'Where the notes moved to on the dropped string.',
+    chords: [step('r1','D','5',{mode:'riff',string:6,fret:0,notes:['D2','D2','F2','G2']}),
+             step('r2','D','5',{mode:'riff',string:6,fret:0,notes:['D2','G2','F2','D2']}),
+             step('r3','D','5',{mode:'riff',string:6,fret:0,notes:['D2','D2','A2','G2']}),
+             step('r4','D','5',{mode:'riff',string:6,fret:0,notes:['F2','D2','D2','D2']})],
+  },
+  {
+    id: 'prog.dropd.folk', title: 'Drop D: D–C–G–D with a droning bass', genre: 'Tunings',
+    level: 'intermediate', tempoBpm: 74, tuning: 'drop-d',
+    description: 'Open D rings under everything. G moves to the 5th fret in this tuning — the old 3rd fret is now an A.',
+    teaches: 'That every shape touching the 6th string needs re-learning two frets up.',
+    chords: [step('d','D','maj',{string:6,fret:0}),
+             step('c','C','maj',{string:5,fret:3,shape:'fretting.open.c'}),
+             step('g','G','maj',{string:6,fret:5,label:'G, 6th string at the 5th fret'}),
+             step('d2','D','maj',{string:6,fret:0})],
+  },
+  {
+    id: 'prog.halfstep.rock', title: 'Half step down: E–A–B shapes', genre: 'Tunings',
+    level: 'intermediate', tempoBpm: 76, tuning: 'half-step-down',
+    description: 'The shapes you already know. They sound E♭, A♭ and B♭ — the detector agrees with your ears, not with your fingers.',
+    teaches: 'That a tuning renames every chord without changing a single shape.',
+    chords: [shapeStep('e','E','maj','half-step-down',{string:6,fret:0}),
+             shapeStep('a','A','maj','half-step-down',{string:5,fret:0}),
+             shapeStep('b','B','maj','half-step-down',{string:5,fret:2}),
+             shapeStep('e2','E','maj','half-step-down',{string:6,fret:0})],
+  },
+  {
+    id: 'prog.halfstep.power', title: 'Half step down: E5–G5–A5 shapes', genre: 'Tunings',
+    level: 'beginner', tempoBpm: 92, tuning: 'half-step-down',
+    description: 'Slack strings, heavier sound. Palm-mute and dig in.',
+    teaches: 'Power chords in a tuning where the strings fight back less.',
+    chords: [shapeStep('e5','E','5','half-step-down',{mode:'palm-mute',string:6,fret:0}),
+             shapeStep('g5','G','5','half-step-down',{mode:'palm-mute',string:6,fret:3}),
+             shapeStep('a5','A','5','half-step-down',{mode:'palm-mute',string:6,fret:5}),
+             shapeStep('e5b','E','5','half-step-down',{mode:'palm-mute',string:6,fret:0})],
+  },
+  {
+    id: 'riff.halfstep.pentatonic', title: 'Half step down: minor pentatonic', genre: 'Tunings',
+    level: 'intermediate', tempoBpm: 68, tuning: 'half-step-down',
+    description: 'The open-position E minor pentatonic shape, sounding in E♭ minor.',
+    teaches: 'Hearing a familiar shape land a semitone below where you left it.',
+    chords: [step('r1','D#','min',{mode:'riff',string:6,fret:0,notes:flatNotes(['E2','G2','A2','B2']),label:'E minor pentatonic shape'}),
+             step('r2','D#','min',{mode:'riff',string:5,fret:0,notes:flatNotes(['D3','E3','G3','A3']),label:'E minor pentatonic shape'}),
+             step('r3','D#','min',{mode:'riff',string:5,fret:0,notes:flatNotes(['A3','G3','E3','D3']),label:'E minor pentatonic shape'}),
+             step('r4','D#','min',{mode:'riff',string:6,fret:0,notes:flatNotes(['B2','A2','G2','E2']),label:'E minor pentatonic shape'})],
+  },
+];
+
+// ── Picking-hand riffs for the string-set skills ─────────────────────────────
+
+/**
+ * The four string-set micro-skills, as riffs Chord Hero can actually score.
+ *
+ * The catalog has asked for "eight notes across strings 4, 3 and 2, strict
+ * down-up" since Task 3, and until now the only way to grade that was to grade
+ * yourself. These stay on the named strings — every note is an open string or a
+ * low fret on the target set — so a wandering pick shows up as a wrong pitch.
+ */
+const STRING_SET_RIFFS: readonly ChordProgression[] = [
+  {
+    id: 'riff.string-set.1-3', title: 'Picking: strings 1–3, alternate', genre: 'Workouts',
+    level: 'beginner', tempoBpm: 72,
+    description: 'Strings 3, 2 and 1 only. Strict down-up, and keep the pick shallow.',
+    teaches: 'Alternate picking on the treble side without clipping a neighbour.',
+    practisesSkillIds: ['picking.string-set.1-3.alternate'],
+    chords: [step('r1','G','maj',{mode:'riff',string:3,fret:0,notes:['G3','B3','E4','B3']}),
+             step('r2','G','maj',{mode:'riff',string:3,fret:2,notes:['A3','C4','F4','C4']}),
+             step('r3','G','maj',{mode:'riff',string:1,fret:0,notes:['E4','B3','G3','B3']}),
+             step('r4','G','maj',{mode:'riff',string:3,fret:0,notes:['G3','G3','B3','E4']})],
+  },
+  {
+    id: 'riff.string-set.2-4', title: 'Picking: strings 2–4, alternate', genre: 'Workouts',
+    level: 'intermediate', tempoBpm: 72,
+    description: 'Strings 4, 3 and 2. Eight notes a bar, down-up throughout.',
+    teaches: 'Crossing strings in the middle of the neck, where both neighbours can be hit.',
+    practisesSkillIds: ['picking.string-set.2-4.alternate'],
+    chords: [step('r1','D','maj',{mode:'riff',string:4,fret:0,notes:['D3','G3','B3','G3']}),
+             step('r2','D','maj',{mode:'riff',string:4,fret:2,notes:['E3','A3','C4','A3']}),
+             step('r3','D','maj',{mode:'riff',string:2,fret:0,notes:['B3','G3','D3','G3']}),
+             step('r4','D','maj',{mode:'riff',string:4,fret:0,notes:['D3','D3','G3','B3']})],
+  },
+  {
+    id: 'riff.string-set.4-6', title: 'Picking: strings 4–6, alternate', genre: 'Workouts',
+    level: 'intermediate', tempoBpm: 68,
+    description: 'The wound strings. Watch that the pick does not dig deeper as it crosses.',
+    teaches: 'Even attack across the bass strings.',
+    practisesSkillIds: ['picking.string-set.4-6.alternate'],
+    chords: [step('r1','E','min',{mode:'riff',string:6,fret:0,notes:['E2','A2','D3','A2']}),
+             step('r2','E','min',{mode:'riff',string:6,fret:2,notes:['F#2','B2','E3','B2']}),
+             step('r3','E','min',{mode:'riff',string:4,fret:0,notes:['D3','A2','E2','A2']}),
+             step('r4','E','min',{mode:'riff',string:6,fret:0,notes:['E2','E2','A2','D3']})],
+  },
+  {
+    id: 'riff.string-set.3-5.skip', title: 'Picking: string skipping, 5 to 3', genre: 'Workouts',
+    level: 'advanced', tempoBpm: 60,
+    description: 'The 4th string is never played. Jump straight over it, both directions.',
+    teaches: 'Clearing a string entirely — the pick has to travel further and still land.',
+    practisesSkillIds: ['picking.string-set.3-5.skip'],
+    chords: [step('r1','A','min',{mode:'riff',string:5,fret:0,notes:['A2','G3','A2','G3']}),
+             step('r2','A','min',{mode:'riff',string:5,fret:2,notes:['B2','A3','B2','A3']}),
+             step('r3','A','min',{mode:'riff',string:5,fret:3,notes:['C3','B3','C3','B3']}),
+             step('r4','A','min',{mode:'riff',string:5,fret:0,notes:['A2','A3','G3','A2']})],
+  },
+];
+
+/**
+ * The whole library.
+ *
+ * Hand-written entries first, then the generated ones — the picker groups by
+ * genre, so the ordering here only decides what comes first inside a genre.
+ */
+export const PROGRESSIONS: readonly ChordProgression[] = [
+  ...CORE_PROGRESSIONS,
+  ...SEVENTH_KEY_PROGRESSIONS,
+  DOMINANT_CYCLE,
+  ...TUNING_PROGRESSIONS,
+  ...STRING_SET_RIFFS,
+];
+
+/** The tuning a progression wants, defaulted. */
+export function tuningOf(progression: ChordProgression) {
+  return TUNINGS[progression.tuning ?? DEFAULT_TUNING];
+}
+
+/** True when playing this needs the guitar re-tuned. */
+export function needsRetuning(progression: ChordProgression): boolean {
+  return (progression.tuning ?? DEFAULT_TUNING) !== DEFAULT_TUNING;
+}
+
+/** Progressions that drill a hand-written catalog skill, for the hand-off. */
+export function progressionsForSkill(skillId: string): ChordProgression[] {
+  return PROGRESSIONS.filter((p) => p.practisesSkillIds?.includes(skillId));
+}
 
 export const PROGRESSION_BY_ID: ReadonlyMap<string, ChordProgression> = new Map(
   PROGRESSIONS.map((p) => [p.id, p]),
