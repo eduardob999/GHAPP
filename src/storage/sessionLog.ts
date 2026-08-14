@@ -51,6 +51,13 @@ export interface SessionEntry {
 export interface SessionRecord extends SessionEntry {
   id: string;
   recordedAt?: Timestamp;
+  /**
+   * Client clock, written at the same moment as `recordedAt`. This is the one
+   * to count streaks by: it is present the instant the write hits the local
+   * cache, whereas `serverTimestamp()` reads back null until the server lands —
+   * so offline, a run recorded today would otherwise not count as today.
+   */
+  at?: Timestamp;
 }
 
 function sessionsCollection(uid: string) {
@@ -110,6 +117,7 @@ export function subscribeRecentSessions(
               ? { meanTimingMs: Number(data['meanTimingMs']) }
               : {}),
             ...(data['recordedAt'] ? { recordedAt: data['recordedAt'] as Timestamp } : {}),
+            ...(data['at'] ? { at: data['at'] as Timestamp } : {}),
           };
         }),
       );

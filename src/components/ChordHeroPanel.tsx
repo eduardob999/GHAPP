@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { useChordDetector } from '../hooks/useChordDetector';
 import { createMetronome, type Metronome } from '../audio/metronome';
+import { createChimePlayer, type ChimePlayer } from '../audio/chime';
 import { shortChordLabel, type ChordQuality } from '../audio/chordDetection';
 import {
   GENRES,
@@ -103,12 +104,15 @@ export interface ChordHeroPanelProps {
   /** Set when Today's Session hands over a progression; null when idle. */
   requestedProgressionId?: string | null;
   onRequestHandled?: () => void;
+  /** Reports whether the microphone is currently open, so the companion can listen. */
+  onListeningChange?: (listening: boolean) => void;
 }
 
 export function ChordHeroPanel({
   user,
   requestedProgressionId = null,
   onRequestHandled,
+  onListeningChange,
 }: ChordHeroPanelProps) {
   const { currentChord, currentNote, currentResult, onsets, error, isStarting, start, stop, reset } =
     useChordDetector();
@@ -148,6 +152,7 @@ export function ChordHeroPanel({
    */
   const bestStreakRef = useRef(0);
   const metronome = useRef<Metronome | null>(null);
+  const chime = useRef<ChimePlayer | null>(null);
   const sectionRef = useRef<HTMLElement | null>(null);
 
   const visible = useMemo(
@@ -340,6 +345,12 @@ export function ChordHeroPanel({
         }
       }
 
+      // A reward sound at the end of a run you started yourself. Pitched above
+      // the analysis band like the metronome, so it cannot be scored even if the
+      // detector is still running when it plays.
+      chime.current ??= createChimePlayer();
+      chime.current.play(runSummary.hit / runSummary.total >= 0.65 ? 'success' : 'gentle');
+
       setSavedNote(grade);
       console.info('[chord-hero] Filed run as', grade, 'for', skillId);
     },
@@ -363,7 +374,20 @@ export function ChordHeroPanel({
     onRequestHandled?.();
   }, [requestedProgressionId, onRequestHandled]);
 
-  useEffect(() => () => metronome.current?.stop(), []);
+  useEffect(
+    () => () => {
+      metronome.current?.stop();
+      chime.current?.close();
+      chime.current = null;
+    },
+    [],
+  );
+
+  // The companion listens while the microphone is open.
+  const listening = phase === 'countin' || phase === 'playing';
+  useEffect(() => {
+    onListeningChange?.(listening);
+  }, [listening, onListeningChange]);
 
   const active = phase === 'playing' ? chordAt(progression, tempoBpm, elapsedMs) : null;
   const lane = active

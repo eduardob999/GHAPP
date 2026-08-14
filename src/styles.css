@@ -972,6 +972,156 @@ code {
   font-variant-numeric: tabular-nums;
 }
 
+/* Companion --------------------------------------------------------------- */
+
+.button--small {
+  padding: 6px 12px;
+  font-size: 0.8rem;
+}
+
+.companion-card__body {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.companion-card__text {
+  min-width: 0;
+}
+
+.companion-card__line {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.companion-card__streak {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.companion {
+  flex: none;
+  /* The character breathes. Everything else about the app is still, so this is
+     the only thing on the page asking to be looked at. */
+  animation: companion-bob 3.6s ease-in-out infinite;
+}
+
+.companion__body {
+  fill: var(--accent);
+}
+
+.companion__sheen {
+  fill: #ffffff;
+  opacity: 0.22;
+}
+
+.companion__stroke {
+  stroke: #12101f;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+.companion__blush {
+  fill: #fb7185;
+  opacity: 0.55;
+}
+
+.companion__zzz {
+  fill: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  animation: companion-drift 2.6s ease-in-out infinite;
+}
+
+.companion__sparks circle {
+  fill: var(--pending);
+  animation: pulse 0.9s ease-in-out infinite;
+}
+
+.companion__ears path {
+  animation: pulse 1.1s ease-in-out infinite;
+}
+
+.companion--listening {
+  animation: companion-bob 1.6s ease-in-out infinite;
+}
+
+.companion--celebrating {
+  animation: companion-hop 0.6s ease-in-out infinite;
+}
+
+.companion--sleepy {
+  animation: companion-bob 6s ease-in-out infinite;
+}
+
+@keyframes companion-bob {
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes companion-hop {
+  30% {
+    transform: translateY(-9px) rotate(-4deg);
+  }
+  60% {
+    transform: translateY(0) rotate(3deg);
+  }
+}
+
+@keyframes companion-drift {
+  50% {
+    transform: translate(3px, -4px);
+    opacity: 0.4;
+  }
+}
+
+.milestone {
+  margin-bottom: 14px;
+}
+
+.milestone__labels {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.milestone__count {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.badges {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 0;
+}
+
+.badges .badge {
+  gap: 8px;
+  color: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.badge__days {
+  font-variant-numeric: tabular-nums;
+}
+
+.badge__name {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
 @keyframes pulse {
   50% {
     opacity: 0.25;

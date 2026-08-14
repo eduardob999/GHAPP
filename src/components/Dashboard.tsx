@@ -7,6 +7,7 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { recordPracticePing } from '../storage/userState';
 import { ChordHeroPanel } from './ChordHeroPanel';
+import { CompanionCard } from './CompanionCard';
 import { PracticePanel } from './PracticePanel';
 import { ShapeTrainerPanel } from './ShapeTrainerPanel';
 import { StringSniperPanel } from './StringSniperPanel';
@@ -45,6 +46,10 @@ export function Dashboard({ user }: DashboardProps) {
   // Same pattern for progressions handed to Chord Hero.
   const [heroProgressionId, setHeroProgressionId] = useState<string | null>(null);
   const handleHeroRequestHandled = useCallback(() => setHeroProgressionId(null), []);
+
+  // Chord Hero reports when the microphone is open, so the companion can look
+  // like it is listening rather than guessing from a timer.
+  const [listening, setListening] = useState(false);
 
   async function handleSignOut() {
     setSigningOut(true);
@@ -93,6 +98,8 @@ export function Dashboard({ user }: DashboardProps) {
       </header>
 
       <main className="content">
+        <CompanionCard user={user} listening={listening} />
+
         <PracticePanel
           user={user}
           onOpenInTrainer={setTrainerSkillId}
@@ -109,6 +116,7 @@ export function Dashboard({ user }: DashboardProps) {
           user={user}
           requestedProgressionId={heroProgressionId}
           onRequestHandled={handleHeroRequestHandled}
+          onListeningChange={setListening}
         />
 
         <TunerPanel />
