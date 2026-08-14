@@ -46,6 +46,13 @@ export interface SessionEntry {
   bestStreak?: number;
   /** Mean absolute attack offset in ms, when onsets were detected. */
   meanTimingMs?: number;
+  /**
+   * Where the verdict came from. Absent means audio, which is what every record
+   * written before self-grading existed was. Worth keeping: a future scheduler
+   * evaluated against this history should know which rows are a microphone's
+   * opinion and which are the player's.
+   */
+  graded?: 'audio' | 'self';
 }
 
 export interface SessionRecord extends SessionEntry {
@@ -118,6 +125,9 @@ export function subscribeRecentSessions(
               : {}),
             ...(data['recordedAt'] ? { recordedAt: data['recordedAt'] as Timestamp } : {}),
             ...(data['at'] ? { at: data['at'] as Timestamp } : {}),
+            ...(data['graded'] === 'self' || data['graded'] === 'audio'
+              ? { graded: data['graded'] }
+              : {}),
           };
         }),
       );

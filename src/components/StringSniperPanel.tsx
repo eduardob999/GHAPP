@@ -12,6 +12,7 @@ import {
   type SniperHitResult,
   type StringSniperConfig,
 } from '../domain/stringSniper';
+import { MicNotice } from './MicNotice';
 
 /**
  * String Sniper — picking accuracy.
@@ -33,7 +34,17 @@ const FEEDBACK: Record<SniperHitResult, { text: string; modifier: string }> = {
 };
 
 export function StringSniperPanel() {
-  const { isRunning, isStarting, currentConfig, lastResult, lastDetected, error, start, stop } =
+  const {
+    isRunning,
+    isStarting,
+    currentConfig,
+    lastResult,
+    lastDetected,
+    error,
+    errorCode,
+    start,
+    stop,
+  } =
     useStringSniper();
 
   const [targetString, setTargetString] = useState<GuitarStringIndex>(6);
@@ -62,10 +73,12 @@ export function StringSniperPanel() {
         produced belongs on your target.
       </p>
 
-      {error ? (
-        <p className="notice notice--error" role="alert">
-          {error}
-        </p>
+      {errorCode ? (
+        <MicNotice
+          code={errorCode}
+          detail={error}
+          onRetry={() => void start(draftConfig)}
+        />
       ) : null}
 
       {!isRunning ? (

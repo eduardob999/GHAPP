@@ -1122,6 +1122,51 @@ code {
   font-weight: 500;
 }
 
+/* Microphone guidance ----------------------------------------------------- */
+
+.micnotice {
+  margin: 0 0 16px;
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--pending) 40%, transparent);
+  background: color-mix(in srgb, var(--pending) 8%, transparent);
+}
+
+.micnotice__headline {
+  margin: 0 0 6px;
+  font-weight: 700;
+  color: var(--pending);
+}
+
+.micnotice__explanation {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+}
+
+.micnotice__steps {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  font-size: 0.9rem;
+  display: grid;
+  gap: 4px;
+}
+
+.micnotice__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.micnotice__detail {
+  margin: 10px 0 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.selfgrade {
+  margin-bottom: 12px;
+}
+
 @keyframes pulse {
   50% {
     opacity: 0.25;

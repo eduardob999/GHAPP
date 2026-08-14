@@ -30,6 +30,7 @@ import {
   type ProgressionLevel,
 } from '../domain/progressions';
 import { SKILL_BY_ID } from '../domain/skills';
+import { MicNotice } from './MicNotice';
 import { useSkillStates } from '../hooks/useSkillStates';
 import { useRecentSessions } from '../hooks/useRecentSessions';
 import { upsertSkillPracticeState } from '../storage/skillsState';
@@ -114,8 +115,18 @@ export function ChordHeroPanel({
   onRequestHandled,
   onListeningChange,
 }: ChordHeroPanelProps) {
-  const { currentChord, currentNote, currentResult, onsets, error, isStarting, start, stop, reset } =
-    useChordDetector();
+  const {
+    currentChord,
+    currentNote,
+    currentResult,
+    onsets,
+    error,
+    errorCode,
+    isStarting,
+    start,
+    stop,
+    reset,
+  } = useChordDetector();
 
   const [genre, setGenre] = useState<string>('Essentials');
   const [level, setLevel] = useState<ProgressionLevel | 'all'>('all');
@@ -133,6 +144,16 @@ export function ChordHeroPanel({
   /** Set when replaying only the steps that went badly. */
   const [override, setOverride] = useState<ChordProgression | null>(null);
   const [rampOn, setRampOn] = useState(false);
+  /**
+   * Self-graded mode: the same steps on the same clock, graded by the player.
+   *
+   * Milestone 4's requirement is that a denied microphone does not take the app
+   * away, and a rhythm game with no scoring is not a fallback — it is a
+   * metronome. Here the run is identical apart from where the verdict comes
+   * from, so the scheduler, the log and the streak all keep working.
+   */
+  const [selfGrading, setSelfGrading] = useState(false);
+  const selfScores = useRef<Map<string, ChordScore>>(new Map());
 
   const { states } = useSkillStates(user.uid);
   const { sessions } = useRecentSessions(user.uid, 6);
@@ -244,8 +265,11 @@ export function ChordHeroPanel({
       for (const step of progression.chords) {
         const end = start + chordDurationMs(step, tempoBpm);
         if (end <= now) {
-          const pitchScore =
-            step.mode === 'riff'
+          const pitchScore = selfGrading
+            ? // Anything the player did not rule on is `unclear`, not a miss:
+              // failing to press a button is not the same as playing it wrong.
+              (selfScores.current.get(step.id) ?? 'unclear')
+            : step.mode === 'riff'
               ? scoreRiffWindow(step.notes ?? [], noteObs.current.get(step.id) ?? []).score
               : scoreWindow(step, chordObs.current.get(step.id) ?? []).score;
 
@@ -283,7 +307,7 @@ export function ChordHeroPanel({
     tick();
     const handle = window.setInterval(tick, SAMPLE_INTERVAL_MS);
     return () => window.clearInterval(handle);
-  }, [phase, totalMs, progression, tempoBpm]);
+  }, [phase, totalMs, progression, tempoBpm, selfGrading]);
 
   /**
    * Files the run with the spaced scheduler.
@@ -326,6 +350,7 @@ export function ChordHeroPanel({
         misses: runSummary.miss + runSummary.unclear,
         tempoBpm,
         bestStreak: bestStreakRef.current,
+        graded: selfGrading ? 'self' : 'audio',
         ...(timings.length > 0
           ? {
               meanTimingMs: Math.round(
@@ -354,7 +379,16 @@ export function ChordHeroPanel({
       setSavedNote(grade);
       console.info('[chord-hero] Filed run as', grade, 'for', skillId);
     },
-    [progression.id, progression.title, progression.tempoBpm, stateById, user.uid, tempoBpm, rampOn],
+    [
+      progression.id,
+      progression.title,
+      progression.tempoBpm,
+      stateById,
+      user.uid,
+      tempoBpm,
+      rampOn,
+      selfGrading,
+    ],
   );
 
   /** Jump to a progression handed over by Today's Session. */
@@ -383,8 +417,9 @@ export function ChordHeroPanel({
     [],
   );
 
-  // The companion listens while the microphone is open.
-  const listening = phase === 'countin' || phase === 'playing';
+  // The companion listens while the microphone is open — which it is not in a
+  // self-graded run.
+  const listening = !selfGrading && (phase === 'countin' || phase === 'playing');
   useEffect(() => {
     onListeningChange?.(listening);
   }, [listening, onListeningChange]);
@@ -394,31 +429,57 @@ export function ChordHeroPanel({
     ? progression.chords.slice(active.index + 1, active.index + 4)
     : progression.chords.slice(0, 3);
 
-  const handleStart = useCallback(async () => {
-    chordObs.current = new Map();
-    noteObs.current = new Map();
-    gradedIds.current = new Set();
-    stepOnset.current = new Map();
-    setResults([]);
-    setElapsedMs(0);
-    setStreak(0);
-    setBestStreak(0);
-    bestStreakRef.current = 0;
-    setCountInBeat(0);
-    setSavedNote(null);
-    reset();
-    await start();
+  const handleStart = useCallback(
+    async (mode: 'listen' | 'self' = 'listen') => {
+      chordObs.current = new Map();
+      noteObs.current = new Map();
+      gradedIds.current = new Set();
+      stepOnset.current = new Map();
+      selfScores.current = new Map();
+      setResults([]);
+      setElapsedMs(0);
+      setStreak(0);
+      setBestStreak(0);
+      bestStreakRef.current = 0;
+      setCountInBeat(0);
+      setSavedNote(null);
+      reset();
 
-    if (clickOn) {
-      metronome.current ??= createMetronome();
-      await metronome.current.start(tempoBpm, COUNT_IN_BEATS);
-    }
+      const listen = mode === 'listen';
 
-    setPhase('countin');
-  }, [clickOn, reset, start, tempoBpm]);
+      // Never start the clock on a microphone that did not open. Before this,
+      // a denied permission produced a full run of misses and filed it with the
+      // scheduler as a fail — punishing the user for a browser setting.
+      if (listen && !(await start())) {
+        setSelfGrading(false);
+        setPhase('idle');
+        return;
+      }
+
+      setSelfGrading(!listen);
+
+      if (clickOn) {
+        metronome.current ??= createMetronome();
+        await metronome.current.start(tempoBpm, COUNT_IN_BEATS);
+      }
+
+      setPhase('countin');
+    },
+    [clickOn, reset, start, tempoBpm],
+  );
+
+  /** The player's verdict on the step that is sounding right now. */
+  const gradeCurrentStep = useCallback(
+    (score: ChordScore) => {
+      const current = chordAt(progression, tempoBpm, performance.now() - startedAtRef.current);
+      if (current) selfScores.current.set(current.chord.id, score);
+    },
+    [progression, tempoBpm],
+  );
 
   const handleStop = useCallback(() => {
     setPhase('idle');
+    setSelfGrading(false);
     metronome.current?.stop();
     stop();
   }, [stop]);
@@ -452,7 +513,15 @@ export function ChordHeroPanel({
         <span className="pill">{PROGRESSIONS.length} progressions</span>
       </div>
 
-      {error ? (
+      {errorCode && phase === 'idle' ? (
+        <MicNotice
+          code={errorCode}
+          detail={error}
+          onRetry={() => void handleStart('listen')}
+          onContinueWithout={() => void handleStart('self')}
+          continueLabel="Play it self-graded"
+        />
+      ) : error ? (
         <p className="notice notice--error" role="alert">
           {error}
         </p>
@@ -639,14 +708,25 @@ export function ChordHeroPanel({
             </div>
           </div>
 
-          <button
-            type="button"
-            className="button button--primary"
-            onClick={() => void handleStart()}
-            disabled={isStarting}
-          >
-            {isStarting ? 'Waiting for microphone…' : 'Play'}
-          </button>
+          <div className="task__grades">
+            <button
+              type="button"
+              className="button button--primary"
+              onClick={() => void handleStart('listen')}
+              disabled={isStarting}
+            >
+              {isStarting ? 'Waiting for microphone…' : 'Play'}
+            </button>
+            <button
+              type="button"
+              className="button button--ghost"
+              onClick={() => void handleStart('self')}
+              disabled={isStarting}
+              data-testid="play-self-graded"
+            >
+              Play self-graded
+            </button>
+          </div>
           <p className="card__hint">
             On <strong>notes + timing</strong>, a chord played more than 70&nbsp;ms off the
             beat drops from Hit to Close. The click sits above 2&nbsp;kHz, outside the range
@@ -720,6 +800,39 @@ export function ChordHeroPanel({
             />
           ) : null}
 
+          {selfGrading ? (
+            <div className="selfgrade" data-testid="selfgrade">
+              <p className="card__hint">
+                No microphone — you are the judge. Rule on each step as it passes; anything you
+                leave alone counts as unclear rather than as a miss.
+              </p>
+              <div className="task__grades">
+                <button
+                  type="button"
+                  className="button button--grade grade--easy"
+                  onClick={() => gradeCurrentStep('hit')}
+                  data-testid="selfgrade-hit"
+                >
+                  Got it
+                </button>
+                <button
+                  type="button"
+                  className="button button--grade grade--hard"
+                  onClick={() => gradeCurrentStep('partial')}
+                >
+                  Nearly
+                </button>
+                <button
+                  type="button"
+                  className="button button--grade grade--fail"
+                  onClick={() => gradeCurrentStep('miss')}
+                  data-testid="selfgrade-miss"
+                >
+                  Missed
+                </button>
+              </div>
+            </div>
+          ) : (
           <div
             className={`verdict ${
               active.chord.mode === 'riff'
@@ -742,6 +855,7 @@ export function ChordHeroPanel({
                   ? 'Too noisy — play more cleanly'
                   : 'Listening…'}
           </div>
+          )}
 
           <button type="button" className="button button--ghost" onClick={handleStop}>
             Stop

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AudioEngineError } from '../audio/audioEngine';
+import { AudioEngineError, type AudioEngineErrorCode } from '../audio/audioEngine';
 import { createDspEngine, type DspEngine, type DspFrame } from '../audio/dspEngine';
 import { frequencyToNote } from '../audio/notes';
 import {
@@ -36,6 +36,8 @@ export interface StringSniperState {
   lastResult: SniperHitResult | null;
   lastDetected: SniperDetection;
   error: string | null;
+  /** Why the microphone did not start, so the panel can advise rather than report. */
+  errorCode: AudioEngineErrorCode | null;
   start: (config: StringSniperConfig) => Promise<void>;
   stop: () => void;
   resetResult: () => void;
@@ -80,6 +82,7 @@ export function useStringSniper(): StringSniperState {
   const [lastResult, setLastResult] = useState<SniperHitResult | null>(null);
   const [lastDetected, setLastDetected] = useState<SniperDetection>(EMPTY_DETECTION);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<AudioEngineErrorCode | null>(null);
 
   const engineRef = useRef<DspEngine | null>(null);
   // Read inside the audio callback, so changing target does not resubscribe.
@@ -150,6 +153,7 @@ export function useStringSniper(): StringSniperState {
       if (engineRef.current) return;
 
       setError(null);
+      setErrorCode(null);
       setIsStarting(true);
       setLastResult(null);
       setLastDetected(EMPTY_DETECTION);
@@ -160,6 +164,7 @@ export function useStringSniper(): StringSniperState {
       const engine = createDspEngine({
         onDeviceLost: (deviceError) => {
           setError(deviceError.message);
+          setErrorCode(deviceError.code);
           stop();
         },
       });
@@ -181,6 +186,7 @@ export function useStringSniper(): StringSniperState {
         engineRef.current = null;
         configRef.current = null;
         setError(audioError.message);
+        setErrorCode(audioError.code);
         setIsStarting(false);
         setIsRunning(false);
         setCurrentConfig(null);
@@ -205,6 +211,7 @@ export function useStringSniper(): StringSniperState {
     lastResult,
     lastDetected,
     error,
+    errorCode,
     start,
     stop,
     resetResult,

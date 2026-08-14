@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AudioEngineError } from '../audio/audioEngine';
+import { AudioEngineError, type AudioEngineErrorCode } from '../audio/audioEngine';
 import { createDspEngine, type DspEngine, type DspFrame } from '../audio/dspEngine';
 import { frequencyToNote } from '../audio/notes';
 import {
@@ -40,7 +40,17 @@ export interface ChordDetectorState {
   /** Newest raw analysis, for noise and clarity read-outs. */
   currentResult: ChordDetectionResult | null;
   error: string | null;
-  start: (config?: Partial<ChordDetectionConfig>) => Promise<void>;
+  /**
+   * Why the microphone did not start, as a code the UI can act on. The message
+   * alone is only good for printing; the code is what selects the advice.
+   */
+  errorCode: AudioEngineErrorCode | null;
+  /**
+   * Opens the microphone. Resolves `true` when it is actually listening — a
+   * caller that starts a timed run regardless would score a whole progression
+   * of misses against a microphone that never opened, and file that as a fail.
+   */
+  start: (config?: Partial<ChordDetectionConfig>) => Promise<boolean>;
   stop: () => void;
   reset: () => void;
 }
@@ -71,6 +81,7 @@ export function useChordDetector(): ChordDetectorState {
   const [currentNote, setCurrentNote] = useState<string | null>(null);
   const onsetsRef = useRef<number[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<AudioEngineErrorCode | null>(null);
 
   const engineRef = useRef<DspEngine | null>(null);
   const configRef = useRef<ChordDetectionConfig>(DEFAULT_CHORD_CONFIG);
@@ -158,16 +169,18 @@ export function useChordDetector(): ChordDetectorState {
 
   const start = useCallback(
     async (config: Partial<ChordDetectionConfig> = {}) => {
-      if (engineRef.current) return;
+      if (engineRef.current) return true;
 
       configRef.current = { ...DEFAULT_CHORD_CONFIG, ...config };
       setError(null);
+      setErrorCode(null);
       setIsStarting(true);
       reset();
 
       const engine = createDspEngine({
         onDeviceLost: (deviceError) => {
           setError(deviceError.message);
+          setErrorCode(deviceError.code);
           stop();
         },
       });
@@ -194,9 +207,13 @@ export function useChordDetector(): ChordDetectorState {
         console.error('[chord] Detector failed to start.', audioError);
         engineRef.current = null;
         setError(audioError.message);
+        setErrorCode(audioError.code);
         setIsStarting(false);
         setIsRunning(false);
+        return false;
       }
+
+      return true;
     },
     [handleFrame, reset, stop],
   );
@@ -212,6 +229,7 @@ export function useChordDetector(): ChordDetectorState {
     currentChord,
     currentResult,
     error,
+    errorCode,
     start,
     stop,
     reset,

@@ -1,5 +1,6 @@
 import { usePitchDetector } from '../hooks/usePitchDetector';
 import { IN_TUNE_CENTS, isInTune } from '../audio/notes';
+import { MicNotice } from './MicNotice';
 
 /**
  * Live tuner. Read-only for now — it deliberately writes nothing to Firestore
@@ -32,9 +33,7 @@ export function TunerPanel() {
       </p>
 
       {error ? (
-        <p className="notice notice--error" role="alert">
-          {error.message}
-        </p>
+        <MicNotice code={error.code} detail={error.message} onRetry={start} />
       ) : null}
 
       {isRunning ? (
