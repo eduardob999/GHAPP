@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AudioEngineError } from '../audio/audioEngine';
 import { createDspEngine, type DspEngine, type DspFrame } from '../audio/dspEngine';
+import { frequencyToNote } from '../audio/notes';
 import {
   DEFAULT_CHORD_CONFIG,
   type ChordDetectionConfig,
@@ -29,6 +30,10 @@ import {
 
 export interface ChordDetectorState {
   isRunning: boolean;
+  /** Wall-clock times of detected attacks, newest last. Cleared by `reset`. */
+  onsets: number[];
+  /** Latest single note heard, e.g. "A2". Drives riff scoring. */
+  currentNote: string | null;
   isStarting: boolean;
   /** Smoothed chord, or null when nothing convincing is sounding. */
   currentChord: DetectedChord | null;
@@ -63,6 +68,8 @@ export function useChordDetector(): ChordDetectorState {
   const [isStarting, setIsStarting] = useState(false);
   const [currentChord, setCurrentChord] = useState<DetectedChord | null>(null);
   const [currentResult, setCurrentResult] = useState<ChordDetectionResult | null>(null);
+  const [currentNote, setCurrentNote] = useState<string | null>(null);
+  const onsetsRef = useRef<number[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const engineRef = useRef<DspEngine | null>(null);
@@ -71,6 +78,21 @@ export function useChordDetector(): ChordDetectorState {
   const publishedAtRef = useRef(0);
 
   const handleFrame = useCallback((frame: DspFrame) => {
+    // Pitch rides along on the same engine: riff steps are scored note by note,
+    // chord steps by chord, and both need the same microphone.
+    if (frame.pitch) {
+      const note = frame.pitch.frequency === null ? null : frequencyToNote(frame.pitch.frequency);
+      const label = note?.label ?? null;
+      setCurrentNote((previous) => (previous === label ? previous : label));
+    }
+
+    if (frame.onset) {
+      // Kept in a ref, not state: onsets arrive far too often to re-render on,
+      // and the consumer reads them when it grades a step.
+      onsetsRef.current.push(frame.timestamp);
+      if (onsetsRef.current.length > 256) onsetsRef.current.shift();
+    }
+
     const chordFrame = frame.chord;
     if (!chordFrame) return;
 
@@ -127,8 +149,11 @@ export function useChordDetector(): ChordDetectorState {
   const reset = useCallback(() => {
     recentRef.current = [];
     publishedAtRef.current = 0;
+    onsetsRef.current = [];
+    onsetsRef.current = [];
     setCurrentChord(null);
     setCurrentResult(null);
+    setCurrentNote(null);
   }, []);
 
   const start = useCallback(
@@ -151,7 +176,7 @@ export function useChordDetector(): ChordDetectorState {
 
       try {
         await engine.start({
-          pitchEnabled: false,
+          pitchEnabled: true,
           chordEnabled: true,
           chordMinClarity: configRef.current.minClarity,
         });
@@ -182,6 +207,8 @@ export function useChordDetector(): ChordDetectorState {
   return {
     isRunning,
     isStarting,
+    onsets: onsetsRef.current,
+    currentNote,
     currentChord,
     currentResult,
     error,

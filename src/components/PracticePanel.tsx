@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { useSkillStates } from '../hooks/useSkillStates';
 import { upsertSkillPracticeState } from '../storage/skillsState';
-import { planSession, type PlannedItem } from '../domain/sessionPlanner';
+import { fullCatalog, planSession, type PlannedItem } from '../domain/sessionPlanner';
 import { hasDiagram } from '../domain/shapeTrainer';
+import { progressionIdFromSkillId } from '../domain/progressions';
 import {
   CATEGORY_LABELS,
   FAMILY_LABELS,
@@ -48,9 +49,15 @@ export interface PracticePanelProps {
    * renders standalone; the button only appears for shapes that have a diagram.
    */
   onOpenInTrainer?: (skillId: string) => void;
+  /** Hands a scheduled progression to Chord Hero so it can actually be played. */
+  onOpenInChordHero?: (progressionId: string) => void;
 }
 
-export function PracticePanel({ user, onOpenInTrainer }: PracticePanelProps) {
+export function PracticePanel({
+  user,
+  onOpenInTrainer,
+  onOpenInChordHero,
+}: PracticePanelProps) {
   const { states, loading, error } = useSkillStates(user.uid);
 
   const [plan, setPlan] = useState<PlannedItem[] | null>(null);
@@ -65,13 +72,13 @@ export function PracticePanel({ user, onOpenInTrainer }: PracticePanelProps) {
   // changes — see the note at the top of the file.
   useEffect(() => {
     if (!loading && plan === null) {
-      setPlan(planSession(SKILL_CATALOG, states, new Date()));
+      setPlan(planSession(fullCatalog(SKILL_CATALOG), states, new Date()));
     }
   }, [loading, plan, states]);
 
   const replan = useCallback(() => {
     setGraded({});
-    setPlan(planSession(SKILL_CATALOG, states, new Date()));
+    setPlan(planSession(fullCatalog(SKILL_CATALOG), states, new Date()));
   }, [states]);
 
   const grade = useCallback(
@@ -185,6 +192,19 @@ export function PracticePanel({ user, onOpenInTrainer }: PracticePanelProps) {
                       Open in Fretting Trainer →
                     </button>
                   ) : null}
+
+                  {(() => {
+                    const progressionId = progressionIdFromSkillId(definition.id);
+                    return onOpenInChordHero && progressionId ? (
+                      <button
+                        type="button"
+                        className="task__link"
+                        onClick={() => onOpenInChordHero(progressionId)}
+                      >
+                        Play in Chord Hero →
+                      </button>
+                    ) : null;
+                  })()}
                 </li>
               );
             })}

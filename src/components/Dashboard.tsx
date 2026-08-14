@@ -42,6 +42,10 @@ export function Dashboard({ user }: DashboardProps) {
   const [trainerSkillId, setTrainerSkillId] = useState<string | null>(null);
   const handleTrainerRequestHandled = useCallback(() => setTrainerSkillId(null), []);
 
+  // Same pattern for progressions handed to Chord Hero.
+  const [heroProgressionId, setHeroProgressionId] = useState<string | null>(null);
+  const handleHeroRequestHandled = useCallback(() => setHeroProgressionId(null), []);
+
   async function handleSignOut() {
     setSigningOut(true);
     try {
@@ -89,7 +93,11 @@ export function Dashboard({ user }: DashboardProps) {
       </header>
 
       <main className="content">
-        <PracticePanel user={user} onOpenInTrainer={setTrainerSkillId} />
+        <PracticePanel
+          user={user}
+          onOpenInTrainer={setTrainerSkillId}
+          onOpenInChordHero={setHeroProgressionId}
+        />
 
         <ShapeTrainerPanel
           user={user}
@@ -97,7 +105,11 @@ export function Dashboard({ user }: DashboardProps) {
           onRequestHandled={handleTrainerRequestHandled}
         />
 
-        <ChordHeroPanel />
+        <ChordHeroPanel
+          user={user}
+          requestedProgressionId={heroProgressionId}
+          onRequestHandled={handleHeroRequestHandled}
+        />
 
         <TunerPanel />
 

@@ -29,7 +29,12 @@ export type ChordQuality =
   | '5'
   | '7'
   | 'maj7'
-  | 'min7';
+  | 'min7'
+  | '6'
+  | 'min6'
+  | 'add9'
+  | 'dim7'
+  | 'm7b5';
 
 export const PITCH_CLASS_NAMES = [
   'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B',
@@ -73,8 +78,14 @@ export interface ChordDetectionConfig {
 
 export const DEFAULT_CHORD_CONFIG: ChordDetectionConfig = {
   windowMs: 400,
-  minClarity: 0.62,
-  minNoteCount: 3,
+  // Loosened from 0.62. A real pickup in a room never reaches the clarity a
+  // synthetic tone does, and a shrug mid-progression is worse than a slightly
+  // uncertain answer — the scorer already aggregates over a whole window.
+  minClarity: 0.5,
+  // Two, not three: a triad with a damped or muted third is still that chord,
+  // and demanding three sounding pitch classes rejected exactly the voicings
+  // guitarists actually play.
+  minNoteCount: 2,
   denoise: true,
 };
 
@@ -85,17 +96,29 @@ export const DEFAULT_CHORD_CONFIG: ChordDetectionConfig = {
  * first, so the commonest shapes lead. It also keeps `5` behind `maj`/`min`,
  * since a power chord's template is a subset of both.
  */
-const TEMPLATES: { quality: ChordQuality; intervals: readonly number[] }[] = [
-  { quality: 'maj', intervals: [0, 4, 7] },
-  { quality: 'min', intervals: [0, 3, 7] },
-  { quality: '5', intervals: [0, 7] },
-  { quality: '7', intervals: [0, 4, 7, 10] },
-  { quality: 'min7', intervals: [0, 3, 7, 10] },
-  { quality: 'maj7', intervals: [0, 4, 7, 11] },
-  { quality: 'sus4', intervals: [0, 5, 7] },
-  { quality: 'sus2', intervals: [0, 2, 7] },
-  { quality: 'dim', intervals: [0, 3, 6] },
-  { quality: 'aug', intervals: [0, 4, 8] },
+const TEMPLATES: { quality: ChordQuality; intervals: readonly number[]; prior: number }[] = [
+  // `prior` scales the similarity score. Guitars do not present chords evenly:
+  // every plucked string carries a flat-7 as its 7th partial and a major third
+  // as its 5th, so a plain major triad drifts toward `7` and a triad with a
+  // damped third collapses to `5`. Without a prior those exotic readings win
+  // far too often — which is exactly the "right root, wrong quality" the
+  // detector was producing on real playing. Triads have to be beaten
+  // convincingly, not merely edged out.
+  { quality: 'maj', intervals: [0, 4, 7], prior: 1.0 },
+  { quality: 'min', intervals: [0, 3, 7], prior: 1.0 },
+  { quality: '7', intervals: [0, 4, 7, 10], prior: 0.94 },
+  { quality: 'min7', intervals: [0, 3, 7, 10], prior: 0.94 },
+  { quality: 'maj7', intervals: [0, 4, 7, 11], prior: 0.93 },
+  { quality: '5', intervals: [0, 7], prior: 0.92 },
+  { quality: 'sus4', intervals: [0, 5, 7], prior: 0.90 },
+  { quality: 'sus2', intervals: [0, 2, 7], prior: 0.90 },
+  { quality: '6', intervals: [0, 4, 7, 9], prior: 0.89 },
+  { quality: 'add9', intervals: [0, 2, 4, 7], prior: 0.88 },
+  { quality: 'min6', intervals: [0, 3, 7, 9], prior: 0.88 },
+  { quality: 'm7b5', intervals: [0, 3, 6, 10], prior: 0.87 },
+  { quality: 'dim', intervals: [0, 3, 6], prior: 0.86 },
+  { quality: 'dim7', intervals: [0, 3, 6, 9], prior: 0.85 },
+  { quality: 'aug', intervals: [0, 4, 8], prior: 0.84 },
 ];
 
 /** Precomputed unit-length template vectors, one per root × quality. */
@@ -104,19 +127,53 @@ interface TemplateVector {
   quality: ChordQuality;
   vector: Float64Array;
   norm: number;
+  prior: number;
 }
 
 const TEMPLATE_VECTORS: TemplateVector[] = (() => {
   const out: TemplateVector[] = [];
-  for (const { quality, intervals } of TEMPLATES) {
+  for (const { quality, intervals, prior } of TEMPLATES) {
     for (let root = 0; root < 12; root += 1) {
       const vector = new Float64Array(12);
-      for (const interval of intervals) vector[(root + interval) % 12] = 1;
-      out.push({ root, quality, vector, norm: Math.sqrt(intervals.length) });
+      let sumSquares = 0;
+      for (const interval of intervals) {
+        // The third carries the identity of the chord — it is the only note
+        // separating major from minor — so it is weighted above the root and
+        // fifth. This sharpens maj/min and stops a chord whose third is merely
+        // quiet from matching a power chord just as well.
+        const weight = interval === 3 || interval === 4 ? 1.3 : 1;
+        vector[(root + interval) % 12] = weight;
+        sumSquares += weight * weight;
+      }
+      out.push({ root, quality, vector, norm: Math.sqrt(sumSquares), prior });
     }
   }
   return out;
 })();
+
+const INTERVALS_BY_QUALITY: Record<ChordQuality, readonly number[]> = Object.fromEntries(
+  TEMPLATES.map((t) => [t.quality, t.intervals]),
+) as Record<ChordQuality, readonly number[]>;
+
+/**
+ * The set of pitch classes a chord contains, as a 12-bit mask.
+ *
+ * Used to recognise chords that are literally the same notes under a different
+ * name — C6 and Am7 are both {C,E,G,A}, and every diminished seventh is three
+ * other diminished sevenths. A chroma profile cannot tell them apart, because
+ * there is nothing to tell apart: only the bass note names the root, and that
+ * information is not in a pitch-class profile.
+ */
+export function chordPitchClassMask(root: string, quality: ChordQuality): number {
+  const rootPc = PITCH_CLASS_NAMES.indexOf(root as (typeof PITCH_CLASS_NAMES)[number]);
+  if (rootPc < 0) return 0;
+
+  let mask = 0;
+  for (const interval of INTERVALS_BY_QUALITY[quality] ?? []) {
+    mask |= 1 << ((rootPc + interval) % 12);
+  }
+  return mask;
+}
 
 /** Guitar range with a little headroom: drop-C low end to past the 24th fret. */
 const MIN_ANALYSIS_HZ = 70;
@@ -273,6 +330,24 @@ export function chromaFromSpectrum(
   return { chroma, noiseLevel, peakCount };
 }
 
+/*
+ * Harmonic suppression was tried here and removed.
+ *
+ * The theory is sound — a plucked string's 5th partial lands a major third
+ * above the fundamental and its 7th a minor seventh, so a lone G deposits
+ * energy on B and F — and the obvious fix is to subtract that leakage from the
+ * profile. Measured across five suppression strengths it made clean accuracy
+ * monotonically worse (18/19 correct with none, 15/19 at full strength),
+ * because on real voicings it removes genuine thirds and sevenths along with
+ * the phantom ones: an Em7 lost its D and read as Em, an A major lost its C#
+ * and read as A5.
+ *
+ * What actually fixed the same symptom was cheaper: weighting the third in the
+ * templates, a prior favouring triads, and — for the cases where the third is
+ * genuinely inaudible — treating an omitted third as compatible rather than
+ * contradictory when scoring. See `thirdOf` in `domain/progressions.ts`.
+ */
+
 /** Bins standing above the mean by more than a standard deviation are sounding. */
 export function activePitchClassesOf(chroma: Float64Array): number[] {
   const values = Array.from(chroma);
@@ -281,7 +356,11 @@ export function activePitchClassesOf(chroma: Float64Array): number[] {
 
   const mean = values.reduce((a, b) => a + b, 0) / 12;
   const variance = values.reduce((a, b) => a + (b - mean) ** 2, 0) / 12;
-  const cutoff = Math.max(mean + Math.sqrt(variance) * 0.5, peak * 0.25);
+  // The 0.35 floor is doing real work: a single plucked note's 3rd partial
+  // lands a fifth above it at roughly a third of the fundamental's energy, so a
+  // lower gate lets one note masquerade as a power chord. Measured, 0.35
+  // rejects all single notes while keeping every genuine voicing.
+  const cutoff = Math.max(mean + Math.sqrt(variance) * 0.5, peak * 0.35);
 
   const active: number[] = [];
   for (let i = 0; i < 12; i += 1) if (values[i]! >= cutoff) active.push(i);
@@ -324,7 +403,7 @@ export function detectChord(
   if (mag.length === 0) return EMPTY_RESULT;
 
   const fftSize = mag.length * 2;
-  const { chroma, noiseLevel, peakCount } = chromaFromSpectrum(
+  const { chroma: rawChroma, noiseLevel, peakCount } = chromaFromSpectrum(
     mag,
     sampleRate,
     fftSize,
@@ -332,6 +411,8 @@ export function detectChord(
   );
 
   if (peakCount === 0) return { chord: null, noiseLevel, clarity: 0 };
+
+  const chroma = rawChroma;
 
   const active = activePitchClassesOf(chroma);
 
@@ -345,7 +426,7 @@ export function detectChord(
     if (allowed && !allowed.has(`${PITCH_CLASS_NAMES[template.root]}:${template.quality}`)) {
       continue;
     }
-    const score = cosineSimilarity(chroma, template);
+    const score = cosineSimilarity(chroma, template) * template.prior;
     if (score > bestScore) {
       bestScore = score;
       best = template;
@@ -384,6 +465,11 @@ export function formatChord(root: string, quality: ChordQuality): string {
     case 'sus4': return `${root}sus4`;
     case 'dim': return `${root} dim`;
     case 'aug': return `${root} aug`;
+    case '6': return `${root}6`;
+    case 'min6': return `${root}m6`;
+    case 'add9': return `${root}add9`;
+    case 'dim7': return `${root} dim7`;
+    case 'm7b5': return `${root}m7b5`;
   }
 }
 
@@ -400,5 +486,10 @@ export function shortChordLabel(root: string, quality: ChordQuality): string {
     case 'sus4': return `${root}sus4`;
     case 'dim': return `${root}dim`;
     case 'aug': return `${root}aug`;
+    case '6': return `${root}6`;
+    case 'min6': return `${root}m6`;
+    case 'add9': return `${root}add9`;
+    case 'dim7': return `${root}dim7`;
+    case 'm7b5': return `${root}m7b5`;
   }
 }

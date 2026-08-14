@@ -528,6 +528,72 @@ code {
   transition: width 0.09s linear;
 }
 
+.lane {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  overflow-x: auto;
+}
+
+.lane__item {
+  flex: none;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px dashed var(--border);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.lane__item:first-child {
+  border-style: solid;
+  color: var(--text);
+}
+
+.history {
+  list-style: none;
+  margin: 12px 0 16px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.history__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 80px 40px;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.history__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history__bar {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 22%, transparent);
+  overflow: hidden;
+}
+
+.history__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.history__pct {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Fretting trainer -------------------------------------------------------- */
 
 .diagram {

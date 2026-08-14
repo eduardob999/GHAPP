@@ -1,3 +1,4 @@
+import { PROGRESSION_SKILLS } from './progressionSkills';
 import {
   groupingKey,
   type DifficultyLevel,
@@ -42,6 +43,17 @@ const DIFFICULTY_ORDER: Record<DifficultyLevel, number> = {
 export function dueDateOf(state: SkillPracticeState | undefined): Date | null {
   const dueAt = state?.dueAt;
   return dueAt ? dueAt.toDate() : null;
+}
+
+/**
+ * Everything Today's Session can schedule: the hand-written micro-skills plus
+ * every Chord Hero progression, which are derived from the progression library
+ * so the two can never drift apart.
+ */
+export function fullCatalog(
+  catalog: readonly MicroSkillDefinition[],
+): readonly MicroSkillDefinition[] {
+  return [...catalog, ...PROGRESSION_SKILLS];
 }
 
 export function planSession(

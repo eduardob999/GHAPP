@@ -258,3 +258,82 @@ two-consecutive, bringing the worst case to roughly 300 ms.
 The worklet's contribution is consistency rather than speed: analysis no longer
 shares a thread with React, garbage collection or layout, and no longer stops
 when the tab is hidden.
+
+## Task 9 — Chord Hero, properly ✅
+
+Fixed the "right root, wrong quality" complaint at its root, and grew the game
+into something worth calling Guitar Hero.
+
+- **Detection**: quality priors favouring triads, the third weighted above root
+  and fifth in the templates, a higher active-pitch-class floor, and looser
+  clarity gates. Now 17/17 clean, 68/68 noisy, zero wrong, single notes
+  correctly rejected.
+- **Scoring**: only a *contradicted* third counts as a miss on quality. A G that
+  reads as G7 or G5 — which is what a microphone hears when the 7th partial
+  rings or the third is damped — now scores as a hit. Playing G minor still
+  does not.
+- **Library**: 38 progressions, 180 steps, ten genres from Essentials to Jazz
+  and Modal, three difficulty levels, five play modes (strum, arpeggio,
+  fingerstyle, palm-mute, riff), nine chord qualities.
+- **Riffs**: single-note steps scored by pitch, on the same engine and the same
+  microphone as the chords — compared by pitch class so an octave slip does not
+  punish you.
+- **Feel**: genre and level browsing, a four-beat count-in, a lane of upcoming
+  steps, a live streak, and an accuracy summary with best streak.
+
+**Measured, not assumed.** Harmonic suppression was implemented, measured to
+make accuracy monotonically worse, and removed — the finding is recorded in the
+source so nobody tries it again.
+
+### Task 9 addenda — metronome and scheduler tie-in
+
+- **`src/audio/metronome.ts`** — Web Audio scheduled click, sample-accurate.
+  Pitched at 2.1/2.8 kHz, deliberately *above* the 1800 Hz ceiling of the chord
+  analysis band, so the microphone hears it and the detector cannot. Verified:
+  chord recognition is unaffected with the click running.
+- **Chord Hero now files its runs** with the same
+  `upsertSkillPracticeState` and the same `/users/{uid}/skills` documents as
+  Today's Session and the shape trainer, under a namespaced
+  `chordhero.<progressionId>`. Accuracy maps to an Easy/Good/Hard/Fail grade, so
+  a progression you keep fumbling comes back sooner. Practised progressions are
+  ticked in the picker.
+
+Remaining, in rough order of value: surface the chordhero skills inside Today's
+Session so the scheduler can actually *offer* them, a session log at
+`/users/{uid}/sessions`, and onset detection so strums can be graded on timing
+as well as pitch.
+
+### Task 9 addenda — the loop closes
+
+- **Progressions are schedulable.** `src/domain/progressionSkills.ts` derives a
+  `MicroSkillDefinition` for every progression, so Today's Session plans over 83
+  skills rather than 41 and can *offer back* the progressions you played badly.
+  Derived, not hand-written — adding a progression makes it schedulable for free.
+- **Hand-off both ways.** Today's Session links progression cards straight into
+  Chord Hero, mirroring the existing Fretting Trainer link.
+- **Metronome** above the analysis band, so it keeps time without scoring itself.
+- **Five more chord qualities** — 6, m6, add9, dim7, m7b5 — with low priors so
+  triads still win. 42 progressions, 196 steps, 13 qualities.
+- **Enharmonic identity scores as a hit.** C6 and Am7 are the same four notes;
+  every diminished seventh is three others. A pitch-class profile cannot
+  distinguish them because there is nothing to distinguish — only the bass names
+  the root. Scoring those as misses punished correct playing.
+
+### Task 9 addenda — timing
+
+**Onset detection** (`dspCore.ts`) closes the last gap between this and a real
+rhythm game. Energy-flux attack detection runs on every 128-sample quantum
+rather than on the analysis schedule — onsets need ~3 ms resolution to grade
+timing, and the chord schedule only ticks eight times a second. Asymmetric
+baseline smoothing follows decays slowly, so the baseline still represents
+"before the attack" once a note is ringing.
+
+Measured: 5/5 strums found within 2 ms of truth, zero false positives, none in
+silence, and exactly one in a steady tone (the initial attack).
+
+Chord Hero now reports each step as, for example, "G · 40ms late · Hit" —
+±70 ms counts as in time, which is about where a listener stops hearing a strum
+as displaced and is comfortably wider than the detector's own resolution.
+
+Still open: a session log at `/users/{uid}/sessions`, and feeding timing into
+the grade rather than only displaying it.

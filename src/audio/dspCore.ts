@@ -65,11 +65,60 @@ export interface DspChordFrame {
   clarity: number;
 }
 
+export interface DspOnsetFrame {
+  /** Analysis-thread time of the attack, in milliseconds. */
+  atMs: number;
+  /** How far the energy jumped above its recent baseline. */
+  strength: number;
+}
+
 export interface DspFramePayload {
   /** Sample index at the end of the analysed window — a monotonic clock. */
   frameIndex: number;
   pitch?: DspPitchFrame;
   chord?: DspChordFrame;
+  onset?: DspOnsetFrame;
+}
+
+/**
+ * Attack detection by energy flux.
+ *
+ * A strum is a sudden rise in energy followed by a decay, so comparing the
+ * current block against a slow-moving baseline finds the moment the pick lands.
+ * This runs on every 128-sample quantum rather than on the analysis schedule,
+ * which is the whole reason it is worth having: onsets need ~3 ms resolution to
+ * grade timing, and the chord schedule only ticks eight times a second.
+ *
+ * Deliberately crude. Timing feedback wants "was that early or late", not a
+ * musicological transcription, and a cheap detector on the audio thread beats
+ * an accurate one that stalls it.
+ */
+class OnsetDetector {
+  /** Rises must clear the baseline by this factor to count as an attack. */
+  private static readonly RISE_RATIO = 1.8;
+  /** Absolute floor, so room tone cannot trigger onsets. */
+  private static readonly MIN_ENERGY = 0.008;
+  /** Refractory period: a strum is one event, not six. */
+  private static readonly HOLD_MS = 90;
+
+  private baseline = 0;
+  private lastOnsetMs = -Infinity;
+
+  /** Returns onset strength when the block starts one, else null. */
+  push(rms: number, nowMs: number): number | null {
+    const previous = this.baseline;
+    // Asymmetric smoothing: follow decays slowly so the baseline still
+    // represents "before the attack" once a note is ringing.
+    this.baseline = rms > previous ? previous * 0.7 + rms * 0.3 : previous * 0.95 + rms * 0.05;
+
+    if (rms < OnsetDetector.MIN_ENERGY) return null;
+    if (nowMs - this.lastOnsetMs < OnsetDetector.HOLD_MS) return null;
+    if (previous > 0 && rms < previous * OnsetDetector.RISE_RATIO) return null;
+    if (previous === 0 && rms < OnsetDetector.MIN_ENERGY * 2) return null;
+
+    this.lastOnsetMs = nowMs;
+    return previous > 0 ? rms / previous : rms;
+  }
 }
 
 function computeRms(buffer: Float32Array): number {
@@ -147,6 +196,7 @@ export function createDspAnalyzer(
   let lastPitchAt = -Infinity;
   let lastChordAt = -Infinity;
   let frameIndex = 0;
+  const onsets = new OnsetDetector();
 
   function chordConfig(): ChordDetectionConfig {
     return {
@@ -171,13 +221,22 @@ export function createDspAnalyzer(
       ring.push(samples);
       frameIndex += samples.length;
 
-      if (!ring.ready) return null;
+      // Onsets are checked on every block, not on the analysis schedule — the
+      // whole point is resolution the analysis cadence cannot give.
+      const strength = onsets.push(computeRms(samples), nowMs);
+
+      if (!ring.ready) {
+        return strength === null
+          ? null
+          : { frameIndex, onset: { atMs: nowMs, strength } };
+      }
 
       const wantPitch = config.pitchEnabled && nowMs - lastPitchAt >= config.pitchIntervalMs;
       const wantChord = config.chordEnabled && nowMs - lastChordAt >= config.chordIntervalMs;
-      if (!wantPitch && !wantChord) return null;
+      if (!wantPitch && !wantChord && strength === null) return null;
 
       const payload: DspFramePayload = { frameIndex };
+      if (strength !== null) payload.onset = { atMs: nowMs, strength };
 
       if (wantPitch) {
         lastPitchAt = nowMs;

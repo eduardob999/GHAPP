@@ -37,6 +37,11 @@ export interface DspChord {
   clarity: number;
 }
 
+export interface DspOnset {
+  atMs: number;
+  strength: number;
+}
+
 export interface DspFrame {
   /** `performance.now()` when the frame reached the main thread. */
   timestamp: number;
@@ -44,6 +49,8 @@ export interface DspFrame {
   frameIndex: number;
   pitch?: DspPitch;
   chord?: DspChord;
+  /** Present only on the frame where an attack was detected. */
+  onset?: DspOnset;
 }
 
 export type DspListener = (frame: DspFrame) => void;
@@ -97,6 +104,7 @@ export function createDspEngine(options: DspEngineOptions = {}): DspEngine {
       frameIndex: payload.frameIndex,
       ...(payload.pitch ? { pitch: payload.pitch } : {}),
       ...(payload.chord ? { chord: payload.chord } : {}),
+      ...(payload.onset ? { onset: payload.onset } : {}),
     };
     for (const listener of listeners) listener(frame);
   }
