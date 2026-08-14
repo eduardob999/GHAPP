@@ -20,8 +20,6 @@ always the next thing to do.
       A reversed riff now scores 0.25 order against 1.00 in order, so playing
       the right notes in the wrong sequence is no longer full marks.
 
-## Next
-
 - [x] **4. Practice modes.** Tempo ramp (speeds up only on an 80%+ pass, capped
       at 1.3x written tempo) and a "practise the tricky bits" replay built from
       the previous run's failed steps, at 75% tempo.
