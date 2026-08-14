@@ -42,6 +42,28 @@ always the next thing to do.
       a milestone outranks everything, and what just happened outranks the
       ambient state.
 
+## Next
+
+Drawn from what `docs/ROADMAP.md` still lists as missing.
+
+- [ ] **8. No microphone, no dead ends.** Milestone 4 asks that everything from
+      Milestone 3 keeps working when microphone access is denied. Today a denied
+      permission leaves the audio panels showing an error and nothing else.
+      Chord Hero should fall back to a self-graded run — the same steps, the
+      same clock, manual "got it / missed it" — and every mic panel should say
+      what to do about it rather than just what went wrong.
+- [ ] **9. Session flow.** Milestone 3's last unbuilt piece: warm-up, rotation,
+      cool-down, and an end-of-session summary that files one record to
+      `/users/{uid}/sessions` (`kind: 'today'`) rather than only per-skill
+      grades. Today's Session is a flat list with no shape to it.
+- [ ] **10. Accessibility pass.** Milestone 6: keyboard-only practice, screen
+      reader labels on every live region, visible focus, and a reduced-motion
+      audit now that there is a character bobbing about.
+- [ ] **11. Service worker updates.** Milestone 6: prompt when a new version is
+      waiting instead of silently reloading.
+- [ ] **12. Left-handed.** Milestone 6: mirror the fretboard diagrams and the
+      string order behind a profile setting.
+
 ## Ground rules
 
 - Never touch `.github/workflows/deploy.yml`.
