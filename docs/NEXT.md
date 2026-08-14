@@ -44,12 +44,16 @@ always the next thing to do.
 
 Drawn from what `docs/ROADMAP.md` still lists as missing.
 
-- [ ] **8. No microphone, no dead ends.** Milestone 4 asks that everything from
+- [x] **8. No microphone, no dead ends.** Milestone 4 asks that everything from
       Milestone 3 keeps working when microphone access is denied. Today a denied
       permission leaves the audio panels showing an error and nothing else.
       Chord Hero should fall back to a self-graded run — the same steps, the
       same clock, manual "got it / missed it" — and every mic panel should say
       what to do about it rather than just what went wrong.
+      Done: `src/domain/micGuidance.ts` + `MicNotice`, and a self-graded run
+      that files through the same scheduler and log (`graded: 'self'`). Found a
+      real bug doing it — the run used to start regardless of whether the
+      microphone opened, so a denied permission was filed as a `fail`.
 - [ ] **9. Session flow.** Milestone 3's last unbuilt piece: warm-up, rotation,
       cool-down, and an end-of-session summary that files one record to
       `/users/{uid}/sessions` (`kind: 'today'`) rather than only per-skill
