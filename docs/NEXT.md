@@ -30,9 +30,12 @@ always the next thing to do.
 - [x] **5. Session history UI.** Recent runs with an accuracy bar on the Chord
       Hero setup screen, read from the append-only log.
       of accuracy over time per progression would make progress visible.
-- [ ] **6. More content.** Drop-D and half-step-down tunings, seventh-chord
+- [x] **6. More content.** Drop-D and half-step-down tunings, seventh-chord
       progressions through all twelve keys, picking-hand riffs for the
-      string-set skills.
+      string-set skills. A tuned step stores the chord that *sounds* — an E
+      shape in half-step-down tuning is what the detector hears as E♭ — with
+      the shape to grab carried alongside it in `shapeLabel`. 65 progressions,
+      296 steps.
 - [ ] **7. Adorable.** Companion character, streak rewards, sound design.
       Milestone 5.
 
