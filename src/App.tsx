@@ -1,5 +1,5 @@
 import { AppMark } from './components/AppMark';
-import { Dashboard } from './components/Dashboard';
+import { AppShell } from './components/AppShell';
 import { SetupNotice } from './components/SetupNotice';
 import { SignInScreen } from './components/SignInScreen';
 import { isFirebaseConfigured } from './firebase';
@@ -23,5 +23,5 @@ export function App() {
     );
   }
 
-  return user ? <Dashboard user={user} /> : <SignInScreen />;
+  return user ? <AppShell user={user} /> : <SignInScreen />;
 }
