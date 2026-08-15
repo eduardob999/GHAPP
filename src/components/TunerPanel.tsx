@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { usePitchDetector } from '../hooks/usePitchDetector';
 import { IN_TUNE_CENTS, isInTune } from '../audio/notes';
 import { MicNotice } from './MicNotice';
@@ -20,6 +21,16 @@ export function TunerPanel() {
   const cents = note?.cents ?? 0;
   const inTune = note !== null && isInTune(cents);
 
+  // The tuner updates ~25 times a second; announcing every frame would be a
+  // firehose. Ten-cent buckets are about the resolution a tuning peg has.
+  const coarseCents = Math.round(cents / 10) * 10;
+  const noteLabel = note?.label ?? null;
+  const announcement = useMemo(() => {
+    if (!noteLabel) return 'Listening for a note.';
+    if (inTune) return `${noteLabel}, in tune.`;
+    return `${noteLabel}, ${Math.abs(coarseCents)} cents ${coarseCents > 0 ? 'sharp' : 'flat'}.`;
+  }, [noteLabel, inTune, coarseCents]);
+
   return (
     <section className="card">
       <div className="card__header">
@@ -37,6 +48,16 @@ export function TunerPanel() {
 
       {isRunning ? (
         <>
+          {/*
+            The tuner updates about 25 times a second, and a live region on the
+            readout itself would be a firehose of speech. This announces only
+            when the note changes or the pitch moves by ten cents, which is
+            about the resolution someone can act on anyway.
+          */}
+          <p className="visually-hidden" role="status" data-testid="tuner-live">
+            {announcement}
+          </p>
+
           <div className="tuner">
             <div
               className={`tuner__note${note && inTune ? ' tuner__note--in-tune' : ''}`}

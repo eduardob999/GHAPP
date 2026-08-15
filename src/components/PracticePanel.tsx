@@ -212,7 +212,7 @@ export function PracticePanel({
             return (
               <div key={key} className="phase" data-phase={phase}>
                 <div className="phase__header">
-                  <h3 className="phase__title">{title}</h3>
+                  <h2 className="phase__title">{title}</h2>
                   <p className="phase__blurb">{blurb}</p>
                 </div>
                 <ol className="tasklist">

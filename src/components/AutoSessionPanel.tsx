@@ -178,7 +178,7 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
       <section className="card auto">
         <div className="auto__intro">
           <p className="section-head__eyebrow">Seven minutes before dinner</p>
-          <h1 className="auto__headline">Ready when you are.</h1>
+          <h2 className="auto__headline">Ready when you are.</h2>
           <p className="auto__lead">
             No settings. It picks what is due, sets the tempo from how your last runs went, and
             moves you on. Put the guitar in your hands and press play.
@@ -196,7 +196,7 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
       <section className="card auto">
         <div className="auto__intro">
           <p className="section-head__eyebrow">Done</p>
-          <h1 className="auto__headline">That is the session.</h1>
+          <h2 className="auto__headline">That is the session.</h2>
           <p className="auto__lead">
             {script.activities.length} activities, filed to your practice log. Come back tomorrow
             and it will pick up where this left off.
@@ -229,6 +229,11 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
           </span>
         ))}
       </div>
+
+      {/* Changes once per activity, so it is safe to announce in full. */}
+      <p className="visually-hidden" role="status" data-testid="auto-live">
+        {`Step ${index + 1} of ${progress.total}. ${activityLabel(activity)}: ${activity?.title ?? ''}. ${activity?.coaching ?? ''}`}
+      </p>
 
       <div className="rail__legend">
         <span data-testid="auto-step">

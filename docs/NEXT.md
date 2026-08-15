@@ -99,9 +99,12 @@ should be a tree of menus with one automatic mode at the root.
       an empty slot is the reason to come back. Progress was promoted from a
       one-item menu to a screen of its own.
 
-- [ ] **13. Accessibility pass.** Milestone 6: keyboard-only practice, screen
-      reader labels on every live region, visible focus, and a reduced-motion
-      audit now that there is a character bobbing about.
+- [x] **13. Accessibility pass.** Skip link, one `h1` per screen and no skipped
+      levels, a global `:focus-visible` ring so a new control cannot ship
+      without one, throttled live regions on the readouts that change (the
+      tuner announces in ten-cent buckets, not 25 times a second), and
+      `animation: none` under reduced motion rather than a zeroed duration —
+      which had left the companion frozen mid-bob.
 - [ ] **14. Service worker updates.** Milestone 6: prompt when a new version is
       waiting instead of silently reloading.
 - [ ] **15. Left-handed.** Milestone 6: mirror the fretboard diagrams and the
@@ -110,6 +113,9 @@ should be a tree of menus with one automatic mode at the root.
 ## Ground rules
 
 - Never touch `.github/workflows/deploy.yml`.
+- Every browser test needs a fresh `--user-data-dir`. Reusing one carries state
+  between runs — a half-finished session, a stale emulated media feature — and
+  the failures look like regressions in the app.
 - `src/domain/` stays pure: no React, no Firestore at runtime.
 - Components never import `db`; everything goes through `src/storage/`.
 - Never await a Firestore write for UI purposes — offline it stays pending for

@@ -139,6 +139,10 @@ export function AppShell({ user }: AppShellProps) {
 
   return (
     <div className="screen">
+      <a className="skiplink" href="#main">
+        Skip to the practice
+      </a>
+
       <header className="topbar">
         <button
           type="button"
@@ -148,7 +152,13 @@ export function AppShell({ user }: AppShellProps) {
         >
           <AppMark size={28} />
         </button>
-        <p className="topbar__where">{node.title}</p>
+        {isLeaf(node) ? (
+          <h1 className="topbar__where">{node.title}</h1>
+        ) : (
+          <span className="topbar__where topbar__where--muted" aria-hidden="true">
+            {node.title}
+          </span>
+        )}
         {online ? null : (
           <span className="topbar__offline" title="Offline — everything still works">
             offline
@@ -176,7 +186,7 @@ export function AppShell({ user }: AppShellProps) {
         </span>
       </nav>
 
-      <main className="content" data-node={node.id}>
+      <main className="content" id="main" tabIndex={-1} data-node={node.id}>
         {isLeaf(node) ? (
           renderScreen(node.screen!)
         ) : (

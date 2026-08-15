@@ -199,7 +199,7 @@ export function ShapeTrainerPanel({
         {!liveState ? <span className="tag tag--new">new</span> : null}
       </div>
 
-      <h3 className="task__title">{selected.title}</h3>
+      <h2 className="task__title">{selected.title}</h2>
 
       <FretboardDiagram
         rootString={diagram.rootString}
