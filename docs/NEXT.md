@@ -82,9 +82,13 @@ and decides for you.
       the auto session until its shape has been taught in the fretting trainer
       and heard cleanly at least once. Needs a chord → shape map and a gate over
       the content the director may pick from.
-- [ ] **19. Chord Hero, no setup.** Slowest tempo is the default, everything
+- [x] **19. Chord Hero, no setup.** Slowest tempo is the default, everything
       else is remembered or decided. Picking a progression should be one tap
       from a short list, not four segmented controls.
+      Done: five ranked suggestions (due first, then unplayed and easy), one tap
+      to play, everything else behind "Browse everything". Tempo now defaults to
+      half the written speed with the ramp on, so slow is where you start rather
+      than where you stay.
 - [ ] **20. Songs.** Easy pop songs as playable progressions — chord charts
       only, no lyrics or melodies — scored like everything else, with a Songs
       section that says which ones you can already play.

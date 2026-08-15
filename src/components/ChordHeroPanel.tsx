@@ -132,7 +132,15 @@ export function ChordHeroPanel({
   const [genre, setGenre] = useState<string>('Essentials');
   const [level, setLevel] = useState<ProgressionLevel | 'all'>('all');
   const [progressionId, setProgressionId] = useState<string>(PROGRESSIONS[0]!.id);
-  const [tempoScale, setTempoScale] = useState<number>(1);
+  /**
+   * Slowest by default.
+   *
+   * Written tempo is the speed a piece is *performed* at, not the speed anyone
+   * learns it at, and starting there means fumbling every chord change and
+   * being scored for it. The ramp (below) takes you faster once a run is clean,
+   * which is the right direction to travel.
+   */
+  const [tempoScale, setTempoScale] = useState<number>(0.5);
   const [phase, setPhase] = useState<Phase>('idle');
   const [elapsedMs, setElapsedMs] = useState(0);
   const [countInBeat, setCountInBeat] = useState(0);
@@ -144,7 +152,9 @@ export function ChordHeroPanel({
   const [savedNote, setSavedNote] = useState<string | null>(null);
   /** Set when replaying only the steps that went badly. */
   const [override, setOverride] = useState<ChordProgression | null>(null);
-  const [rampOn, setRampOn] = useState(false);
+  // On by default, now that the starting tempo is deliberately slow: without
+  // it, slow is simply where you stay.
+  const [rampOn, setRampOn] = useState(true);
   /**
    * Self-graded mode: the same steps on the same clock, graded by the player.
    *
@@ -177,6 +187,37 @@ export function ChordHeroPanel({
   const metronome = useRef<Metronome | null>(null);
   const chime = useRef<ChimePlayer | null>(null);
   const sectionRef = useRef<HTMLElement | null>(null);
+
+  /**
+   * The short list: five things worth playing right now, ranked.
+   *
+   * The setup screen used to open on four segmented controls and a dropdown of
+   * sixty-five progressions — a menu, before a note is played, every single
+   * time. Almost all of that is a decision the app is better placed to make: it
+   * knows what is due, what has never been tried, and how hard each one is.
+   *
+   * Due first (most overdue leading), then never-played beginner material in
+   * standard tuning. Everything else stays reachable under "Browse everything".
+   */
+  const suggestions = useMemo(() => {
+    const now = Date.now();
+    const scored = PROGRESSIONS.filter((p) => !p.tuning).map((p) => {
+      const state = stateById.get(progressionSkillId(p.id));
+      const due = state?.dueAt?.toDate().getTime();
+      const levelRank = p.level === 'beginner' ? 0 : p.level === 'intermediate' ? 1 : 2;
+
+      // Overdue items sort ahead of everything, most overdue first; then
+      // unplayed easy material; then the rest.
+      const rank =
+        due !== undefined && due <= now ? -1_000_000 + (due - now) / 60_000
+        : state ? 1_000 + levelRank
+        : levelRank;
+
+      return { progression: p, rank };
+    });
+
+    return scored.sort((a, b) => a.rank - b.rank).slice(0, 5).map((entry) => entry.progression);
+  }, [stateById]);
 
   const visible = useMemo(
     () =>
@@ -533,9 +574,45 @@ export function ChordHeroPanel({
       {phase === 'idle' ? (
         <>
           <p className="card__body">
-            Pick something to play. The app listens and scores each chord or riff by ear —
-            nothing is recorded or uploaded.
+            Tap one and play. It listens and scores every chord by ear — nothing is recorded or
+            uploaded.
           </p>
+
+          <ul className="shortlist" data-testid="shortlist">
+            {suggestions.map((option) => {
+              const state = stateById.get(progressionSkillId(option.id));
+              const due = state?.dueAt?.toDate();
+              const overdue = due !== undefined && due.getTime() <= Date.now();
+
+              return (
+                <li key={option.id}>
+                  <button
+                    type="button"
+                    className="shortlist__item"
+                    data-progression={option.id}
+                    onClick={() => {
+                      setOverride(null);
+                      setProgressionId(option.id);
+                      setGenre(option.genre);
+                      void handleStart('listen');
+                    }}
+                  >
+                    <span className="shortlist__title">{option.title}</span>
+                    <span className="shortlist__meta">
+                      {overdue ? 'due now' : state ? 'played before' : 'new'} · {option.level} ·{' '}
+                      {Math.round(option.tempoBpm * tempoScale)} bpm
+                    </span>
+                    <span className="menu__chevron" aria-hidden="true">
+                      ▶
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+
+          <details className="disclosure">
+            <summary className="disclosure__summary">Browse everything</summary>
 
           <div className="field">
             <span className="field__label">Style</span>
@@ -710,6 +787,7 @@ export function ChordHeroPanel({
               ))}
             </div>
           </div>
+          </details>
 
           <div className="task__grades">
             <button

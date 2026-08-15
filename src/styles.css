@@ -1305,6 +1305,62 @@ code {
   font-variant-numeric: tabular-nums;
 }
 
+/* Chord Hero's shortlist: five things worth playing, one tap each. */
+.shortlist {
+  list-style: none;
+  display: grid;
+  gap: 10px;
+  margin: 0 0 18px;
+  padding: 0;
+}
+
+.shortlist__item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 4px 12px;
+  width: 100%;
+  padding: 16px 18px;
+  background: var(--bg-inset);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.shortlist li:first-child .shortlist__item {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 14%, var(--bg-inset)), var(--bg-inset));
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.shortlist__item:hover {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.shortlist__title {
+  font-weight: 700;
+}
+
+.shortlist__meta {
+  grid-column: 1;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.disclosure {
+  margin-bottom: 18px;
+}
+
+.disclosure__summary {
+  padding: 10px 0;
+  color: var(--accent-soft);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .skiplink {
   position: absolute;
   left: 12px;
