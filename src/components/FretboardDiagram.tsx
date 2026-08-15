@@ -1,3 +1,4 @@
+import { DEFAULT_HANDEDNESS, stringColumn, type Handedness } from '../domain/handedness';
 import type { FingerPosition } from '../domain/skills';
 
 /**
@@ -18,6 +19,8 @@ export interface FretboardDiagramProps {
   mutedStrings?: number[];
   title?: string;
   subtitle?: string;
+  /** Mirrors the neck for a left-handed player. Numbering is unaffected. */
+  handedness?: Handedness;
 }
 
 const STRINGS = [6, 5, 4, 3, 2, 1] as const;
@@ -40,9 +43,12 @@ const NUT_THICKNESS = 5;
 const GRID_WIDTH = (STRINGS.length - 1) * STRING_GAP;
 const WIDTH = PAD_LEFT + GRID_WIDTH + PAD_RIGHT;
 
-/** Low E on the left, high E on the right. */
-function stringX(string: number): number {
-  return PAD_LEFT + (6 - string) * STRING_GAP;
+/**
+ * Low E on the left for a right-handed chart, on the right for a left-handed
+ * one. The flip lives in `stringColumn`, so this stays a single multiply.
+ */
+function stringX(string: number, handedness: Handedness): number {
+  return PAD_LEFT + stringColumn(string, handedness) * STRING_GAP;
 }
 
 export function FretboardDiagram({
@@ -54,6 +60,7 @@ export function FretboardDiagram({
   mutedStrings = [],
   title,
   subtitle,
+  handedness = DEFAULT_HANDEDNESS,
 }: FretboardDiagramProps) {
   // With the nut showing, the first drawn row is fret 1 — fret 0 lives above it
   // as an open marker, not as a row.
@@ -117,8 +124,8 @@ export function FretboardDiagram({
           <line
             key={`string-${string}`}
             className="fretboard__string"
-            x1={stringX(string)}
-            x2={stringX(string)}
+            x1={stringX(string, handedness)}
+            x2={stringX(string, handedness)}
             y1={gridTop}
             y2={gridBottom}
           />
@@ -147,15 +154,15 @@ export function FretboardDiagram({
         {[...muted].map((string) => (
           <g key={`mute-${string}`} className="fretboard__muted">
             <line
-              x1={stringX(string) - 5}
+              x1={stringX(string, handedness) - 5}
               y1={MARKER_Y - 5}
-              x2={stringX(string) + 5}
+              x2={stringX(string, handedness) + 5}
               y2={MARKER_Y + 5}
             />
             <line
-              x1={stringX(string) + 5}
+              x1={stringX(string, handedness) + 5}
               y1={MARKER_Y - 5}
-              x2={stringX(string) - 5}
+              x2={stringX(string, handedness) - 5}
               y2={MARKER_Y + 5}
             />
           </g>
@@ -166,7 +173,7 @@ export function FretboardDiagram({
           <circle
             key={`open-${string}`}
             className={`fretboard__open${isRoot(string, 0) ? ' fretboard__open--root' : ''}`}
-            cx={stringX(string)}
+            cx={stringX(string, handedness)}
             cy={MARKER_Y}
             r={5}
           />
@@ -174,8 +181,12 @@ export function FretboardDiagram({
 
         {/* Barres */}
         {[...barresByFret.entries()].map(([fret, strings]) => {
-          const left = stringX(Math.max(...strings));
-          const right = stringX(Math.min(...strings));
+          // Take the extremes of the *coordinates*, not of the string numbers.
+          // The highest-numbered string is only the leftmost on a right-handed
+          // chart; mirrored, this produced a negative width and no barre at all.
+          const xs = strings.map((string) => stringX(string, handedness));
+          const left = Math.min(...xs);
+          const right = Math.max(...xs);
           return (
             <rect
               key={`barre-${fret}`}
@@ -197,7 +208,7 @@ export function FretboardDiagram({
             <text
               key={`barre-label-${fret}`}
               className="fretboard__finger"
-              x={stringX(Math.max(...strings))}
+              x={Math.min(...strings.map((string) => stringX(string, handedness)))}
               y={fretY(fret) + 4}
             >
               {finger}
@@ -210,14 +221,14 @@ export function FretboardDiagram({
           <g key={`dot-${finger.string}-${finger.fret}`}>
             <circle
               className={`fretboard__dot${isRoot(finger.string, finger.fret) ? ' fretboard__dot--root' : ''}`}
-              cx={stringX(finger.string)}
+              cx={stringX(finger.string, handedness)}
               cy={fretY(finger.fret)}
               r={DOT_RADIUS}
             />
             {finger.finger ? (
               <text
                 className="fretboard__finger"
-                x={stringX(finger.string)}
+                x={stringX(finger.string, handedness)}
                 y={fretY(finger.fret) + 4}
               >
                 {finger.finger}
@@ -230,7 +241,7 @@ export function FretboardDiagram({
         {barredKeys.has(`${rootString}:${rootFret}`) ? (
           <circle
             className="fretboard__root-ring"
-            cx={stringX(rootString)}
+            cx={stringX(rootString, handedness)}
             cy={fretY(rootFret)}
             r={DOT_RADIUS - 3}
           />

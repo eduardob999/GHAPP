@@ -20,6 +20,7 @@ import {
   type PracticeResult,
 } from '../domain/skills';
 import { FretboardDiagram } from './FretboardDiagram';
+import { useHandedness } from '../hooks/useHandedness';
 
 /**
  * Fretting-hand trainer: one shape, one short timed rep, one honest grade.
@@ -53,6 +54,7 @@ export function ShapeTrainerPanel({
   onRequestHandled,
 }: ShapeTrainerPanelProps) {
   const { states, error } = useSkillStates(user.uid);
+  const handedness = useHandedness(user);
 
   const shapes = useMemo(() => trainableShapes(SKILL_CATALOG), []);
   const stateById = useMemo(
@@ -202,6 +204,7 @@ export function ShapeTrainerPanel({
       <h2 className="task__title">{selected.title}</h2>
 
       <FretboardDiagram
+        handedness={handedness}
         rootString={diagram.rootString}
         rootFret={diagram.rootFret}
         lowestFret={diagram.lowestFret}

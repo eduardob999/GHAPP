@@ -16,6 +16,7 @@ import { useSkillStates } from '../hooks/useSkillStates';
 import { usePracticeStreak } from '../hooks/usePracticeStreak';
 import { useRecentSessions } from '../hooks/useRecentSessions';
 import { FretboardDiagram } from './FretboardDiagram';
+import { useHandedness } from '../hooks/useHandedness';
 
 /**
  * The auto session: press play, then play.
@@ -66,6 +67,7 @@ function activityLabel(activity: Activity | null): string {
 
 export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
   const { states } = useSkillStates(user.uid);
+  const handedness = useHandedness(user);
   const { streak } = usePracticeStreak(user.uid);
   const { sessions } = useRecentSessions(user.uid, 10);
 
@@ -252,6 +254,7 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
 
         {diagram ? (
           <FretboardDiagram
+              handedness={handedness}
             rootString={diagram.rootString}
             rootFret={diagram.rootFret}
             lowestFret={diagram.lowestFret}

@@ -38,6 +38,7 @@ import { appendSession } from '../storage/sessionLog';
 import { describeInterval } from '../domain/scheduler';
 import { toDiagram } from '../domain/shapeTrainer';
 import { FretboardDiagram } from './FretboardDiagram';
+import { useHandedness } from '../hooks/useHandedness';
 
 /**
  * Chord Hero — play a progression in time and get scored by ear.
@@ -156,6 +157,7 @@ export function ChordHeroPanel({
   const selfScores = useRef<Map<string, ChordScore>>(new Map());
 
   const { states } = useSkillStates(user.uid);
+  const handedness = useHandedness(user);
   const { sessions } = useRecentSessions(user.uid, 6);
   const stateById = useMemo(() => new Map(states.map((st) => [st.skillId, st])), [states]);
 
@@ -803,6 +805,7 @@ export function ChordHeroPanel({
 
           {diagram ? (
             <FretboardDiagram
+              handedness={handedness}
               rootString={diagram.rootString}
               rootFret={diagram.rootFret}
               lowestFret={diagram.lowestFret}

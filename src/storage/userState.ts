@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
 import { db } from '../firebase';
+import type { Handedness } from '../domain/handedness';
 import type { ProfileSnapshot, UserProfile } from '../types';
 
 /**
@@ -42,6 +43,9 @@ function toUserProfile(uid: string, data: DocumentData | undefined): UserProfile
     createdAt: data['createdAt'] ?? null,
     lastLoginAt: data['lastLoginAt'] ?? null,
     practicePings: data['practicePings'] ?? 0,
+    ...(data['handedness'] === 'left' || data['handedness'] === 'right'
+      ? { handedness: data['handedness'] as Handedness }
+      : {}),
   };
 }
 
@@ -138,4 +142,14 @@ export function subscribeToUserProfile(
       onError?.(error);
     },
   );
+}
+
+/**
+ * Sets which way round the diagrams are drawn.
+ *
+ * Not awaited by callers, like every other write here: the local cache — and
+ * so the diagram on screen — updates immediately.
+ */
+export async function setHandedness(uid: string, handedness: Handedness): Promise<void> {
+  await setDoc(userDoc(uid), { handedness }, { merge: true });
 }

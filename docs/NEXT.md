@@ -107,8 +107,13 @@ should be a tree of menus with one automatic mode at the root.
       which had left the companion frozen mid-bob.
 - [ ] **14. Service worker updates.** Milestone 6: prompt when a new version is
       waiting instead of silently reloading.
-- [ ] **15. Left-handed.** Milestone 6: mirror the fretboard diagrams and the
-      string order behind a profile setting.
+- [x] **15. Left-handed.** `src/domain/handedness.ts` is one predicate and one
+      coordinate flip; string and fret *numbers* deliberately do not change,
+      since renumbering would make every skill id and every practice record mean
+      something different behind a flag. Stored on the user profile, not the
+      device. Found a real bug: the barre rect took its left edge from the
+      highest string number, which is only leftmost on a right-handed chart —
+      mirrored it had negative width and vanished.
 
 ## Ground rules
 

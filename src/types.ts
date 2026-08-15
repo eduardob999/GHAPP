@@ -1,3 +1,4 @@
+import type { Handedness } from './domain/handedness';
 import type { Timestamp } from 'firebase/firestore';
 
 /**
@@ -16,6 +17,12 @@ export interface UserProfile {
   lastLoginAt: Timestamp | null;
   /** Demo counter used to prove that offline writes queue and later sync. */
   practicePings: number;
+  /**
+   * Which way round the fretboard diagrams are drawn. Stored per user rather
+   * than per device: a left-handed player is left-handed on their phone too,
+   * and a device-local setting would make the second device a second account.
+   */
+  handedness?: Handedness;
 }
 
 /**

@@ -5,7 +5,8 @@ import type { Timestamp } from 'firebase/firestore';
 import { persistenceStatus } from '../firebase';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useUserProfile } from '../hooks/useUserProfile';
-import { recordPracticePing } from '../storage/userState';
+import { recordPracticePing, setHandedness } from '../storage/userState';
+import { DEFAULT_HANDEDNESS, describeHandedness, type Handedness } from '../domain/handedness';
 import { SyncBadge } from './SyncBadge';
 
 /**
@@ -102,6 +103,36 @@ export function AccountPanel({ user }: { user: User }) {
           your Firestore security rules.
         </p>
       )}
+
+      <fieldset className="field">
+        <legend className="field__label">Which way round</legend>
+        <div className="segmented">
+          {(['right', 'left'] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={`segmented__option${
+                (profile?.handedness ?? DEFAULT_HANDEDNESS) === option
+                  ? ' segmented__option--active'
+                  : ''
+              }`}
+              aria-pressed={(profile?.handedness ?? DEFAULT_HANDEDNESS) === option}
+              data-handedness={option}
+              onClick={() => {
+                // Not awaited: the local cache updates the diagrams at once.
+                void setHandedness(user.uid, option as Handedness).catch((err: unknown) => {
+                  console.error('[profile] Handedness did not reach the server.', err);
+                });
+              }}
+            >
+              {option === 'right' ? 'Right-handed' : 'Left-handed'}
+            </button>
+          ))}
+        </div>
+        <p className="card__hint" data-testid="handedness-hint">
+          {describeHandedness(profile?.handedness ?? DEFAULT_HANDEDNESS)}
+        </p>
+      </fieldset>
 
       <button type="button" className="button button--primary" onClick={handlePracticePing}>
         Write a test ping
