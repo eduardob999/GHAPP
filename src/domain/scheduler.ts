@@ -1,12 +1,18 @@
+import { reviewSkill, type FsrsState, type FsrsWeights } from './fsrs';
 import type { PracticeResult } from './skills';
 
 /**
  * Spaced-practice scheduling.
  *
- * SM-2 in spirit, not in letter: an ease factor that drifts with how a rep felt,
- * multiplying an interval that grows or shrinks accordingly. The goal is only
- * to push easy material apart and bring failures back soon — not to model
- * memory decay accurately.
+ * **This is now a thin adapter over FSRS** (`src/domain/fsrs.ts`). It was
+ * SM-2-in-spirit: an ease factor multiplying an interval, which pushes easy
+ * material apart and pulls failures forward but has no model of forgetting
+ * behind it — it cannot say how likely you are to still have a chord under your
+ * fingers tomorrow, so it cannot aim at a retention target.
+ *
+ * The shape of this module is kept so every caller and every stored document
+ * keeps working: `ease` is still written, derived from FSRS difficulty, and
+ * still read by anything that displays it. New state lives alongside it.
  *
  * Every function here is pure. `now` is a parameter rather than a call to
  * `Date.now()` so the behaviour is reproducible and testable.
@@ -18,26 +24,54 @@ export interface SchedulerStateInput {
   ease?: number;
   intervalDays?: number;
   lastPracticedAt?: Date | null;
+  /** FSRS memory state, absent on documents written before it existed. */
+  stability?: number;
+  difficulty?: number;
+  reps?: number;
+  lapses?: number;
 }
 
 export interface SchedulerUpdate {
   ease: number;
   intervalDays: number;
   dueAt: Date;
+  stability: number;
+  difficulty: number;
+  reps: number;
+  lapses: number;
+  /** What FSRS expected before this rep, 0–1. Logged so the model can be judged. */
+  predictedRecall: number;
+}
+
+/**
+ * Reads FSRS state off a stored document.
+ *
+ * Returns null when the skill has never been reviewed *under FSRS* — including
+ * documents written by the old scheduler, which are treated as a first rep
+ * rather than converted. Ease and interval do not carry enough information to
+ * reconstruct stability honestly, and a fabricated memory state would schedule
+ * confidently on an invention.
+ */
+function toFsrsState(state: SchedulerStateInput): FsrsState | null {
+  if (state.stability === undefined || state.difficulty === undefined) return null;
+
+  return {
+    stability: state.stability,
+    difficulty: state.difficulty,
+    reps: state.reps ?? 1,
+    lapses: state.lapses ?? 0,
+  };
+}
+
+/** FSRS difficulty (1 hard – 10 punishing) shown as the ease everything else reads. */
+function easeFromDifficulty(difficulty: number): number {
+  const eased = MAX_EASE - ((difficulty - 1) / 9) * (MAX_EASE - MIN_EASE);
+  return round(clamp(eased, MIN_EASE, MAX_EASE));
 }
 
 export const DEFAULT_EASE = 2.5;
 const MIN_EASE = 1.3;
 const MAX_EASE = 3.5;
-
-/**
- * Baseline interval for a skill that has never been practised. Everything else
- * is derived by multiplying this, which avoids special-casing the first rep.
- */
-const BASELINE_INTERVAL_DAYS = 0.5;
-
-/** Floor for a normal interval — twelve hours between reps of the same item. */
-const MIN_INTERVAL_DAYS = 0.25;
 
 /** A failure comes back in about two and a half hours, i.e. later today. */
 const FAIL_INTERVAL_DAYS = 0.1;
@@ -53,13 +87,6 @@ const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
  */
 const REPEAT_WINDOW_HOURS = 1;
 
-const EASE_DELTA: Record<PracticeResult, number> = {
-  easy: 0.15,
-  good: 0.02,
-  hard: -0.15,
-  fail: -0.3,
-};
-
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
@@ -68,19 +95,6 @@ function clamp(value: number, min: number, max: number): number {
  *  stored values and test expectations readable. */
 function round(value: number): number {
   return Math.round(value * 100) / 100;
-}
-
-function nextInterval(previous: number, result: PracticeResult, ease: number): number {
-  switch (result) {
-    case 'easy':
-      return Math.max(previous * ease, BASELINE_INTERVAL_DAYS);
-    case 'good':
-      return Math.max(previous * 1.2, BASELINE_INTERVAL_DAYS);
-    case 'hard':
-      return Math.max(previous * 0.7, MIN_INTERVAL_DAYS);
-    case 'fail':
-      return FAIL_INTERVAL_DAYS;
-  }
 }
 
 /**
@@ -93,17 +107,28 @@ export function scheduleNext(
   state: SchedulerStateInput,
   result: PracticeResult,
   now: Date = new Date(),
+  weights?: FsrsWeights,
 ): SchedulerUpdate {
-  const previousEase = state.ease ?? DEFAULT_EASE;
-  const previousInterval = state.intervalDays ?? BASELINE_INTERVAL_DAYS;
+  const previous = toFsrsState(state);
+  const lastPracticedAt = state.lastPracticedAt ?? null;
+  const elapsedDays = lastPracticedAt
+    ? Math.max(0, (now.getTime() - lastPracticedAt.getTime()) / MILLISECONDS_PER_DAY)
+    : 0;
 
-  const ease = round(clamp(previousEase + EASE_DELTA[result], MIN_EASE, MAX_EASE));
+  const update = reviewSkill(
+    { state: previous, result, elapsedDays },
+    now,
+    ...(weights ? ([weights] as const) : ([] as const)),
+  );
 
-  let intervalDays = nextInterval(previousInterval, result, ease);
+  let intervalDays = update.intervalDays;
 
-  // Same-sitting repeat: allow the interval to fall but not to climb.
-  const lastPracticedAt = state.lastPracticedAt;
-  if (lastPracticedAt) {
+  // Same-sitting repeat: allow the interval to fall but not to climb. Playing
+  // something twice in one sitting is massed practice, and FSRS — which assumes
+  // reviews are spaced — would otherwise read the second rep as evidence of
+  // durable memory rather than of short-term recall.
+  const previousInterval = state.intervalDays;
+  if (lastPracticedAt && previousInterval !== undefined) {
     const hoursSince = (now.getTime() - lastPracticedAt.getTime()) / (60 * 60 * 1000);
     if (hoursSince >= 0 && hoursSince < REPEAT_WINDOW_HOURS) {
       intervalDays = Math.min(intervalDays, previousInterval);
@@ -113,9 +138,14 @@ export function scheduleNext(
   intervalDays = round(clamp(intervalDays, FAIL_INTERVAL_DAYS, MAX_INTERVAL_DAYS));
 
   return {
-    ease,
+    ease: easeFromDifficulty(update.state.difficulty),
     intervalDays,
     dueAt: new Date(now.getTime() + intervalDays * MILLISECONDS_PER_DAY),
+    stability: round(update.state.stability),
+    difficulty: round(update.state.difficulty),
+    reps: update.state.reps,
+    lapses: update.state.lapses,
+    predictedRecall: Math.round(update.predictedRecall * 1000) / 1000,
   };
 }
 

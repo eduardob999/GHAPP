@@ -65,6 +65,12 @@ function toSkillPracticeState(
   if (typeof data['intervalDays'] === 'number') state.intervalDays = data['intervalDays'];
   if (data['dueAt']) state.dueAt = data['dueAt'] as Timestamp;
   if (typeof data['totalReps'] === 'number') state.totalReps = data['totalReps'];
+  if (typeof data['stability'] === 'number') state.stability = data['stability'];
+  if (typeof data['difficulty'] === 'number') state.difficulty = data['difficulty'];
+  if (typeof data['lapses'] === 'number') state.lapses = data['lapses'];
+  if (typeof data['predictedRecall'] === 'number') {
+    state.predictedRecall = data['predictedRecall'];
+  }
   if (data['createdAt']) state.createdAt = data['createdAt'] as Timestamp;
   if (data['updatedAt']) state.updatedAt = data['updatedAt'] as Timestamp;
 
@@ -177,6 +183,10 @@ export async function upsertSkillPracticeState(
     {
       ...(current?.ease !== undefined ? { ease: current.ease } : {}),
       ...(current?.intervalDays !== undefined ? { intervalDays: current.intervalDays } : {}),
+      ...(current?.stability !== undefined ? { stability: current.stability } : {}),
+      ...(current?.difficulty !== undefined ? { difficulty: current.difficulty } : {}),
+      ...(current?.totalReps !== undefined ? { reps: current.totalReps } : {}),
+      ...(current?.lapses !== undefined ? { lapses: current.lapses } : {}),
       lastPracticedAt: current?.lastPracticedAt?.toDate() ?? null,
     },
     result,
@@ -195,6 +205,14 @@ export async function upsertSkillPracticeState(
       dueAt: Timestamp.fromDate(update.dueAt),
       ease: update.ease,
       intervalDays: update.intervalDays,
+      // The FSRS memory state. `ease` above is derived from difficulty and kept
+      // only because other code and older documents read it.
+      stability: update.stability,
+      difficulty: update.difficulty,
+      lapses: update.lapses,
+      // What the model expected before this rep. Stored so the schedule can be
+      // judged against what actually happened rather than trusted.
+      predictedRecall: update.predictedRecall,
       // increment() rather than a read-modify-write, so two devices practising
       // offline both count when they reconnect.
       totalReps: increment(1),

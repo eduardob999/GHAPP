@@ -145,9 +145,20 @@ export interface SkillPracticeState {
   skillId: string;
   lastResult?: PracticeResult;
   lastPracticedAt?: Timestamp;
-  /** SM-2 style ease factor. Higher means the interval grows faster. */
+  /**
+   * Derived from FSRS difficulty and kept for display and for documents written
+   * before FSRS existed. Nothing schedules on it any more.
+   */
   ease?: number;
   intervalDays?: number;
+  /** FSRS: days until recall decays to the retention target. */
+  stability?: number;
+  /** FSRS: 1 (trivial) to 10 (punishing). */
+  difficulty?: number;
+  /** FSRS: failures after the skill was previously known. */
+  lapses?: number;
+  /** What the model expected before the last rep, 0–1. */
+  predictedRecall?: number;
   dueAt?: Timestamp;
   totalReps?: number;
   createdAt?: Timestamp;
