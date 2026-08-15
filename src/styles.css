@@ -1,28 +1,44 @@
+/*
+ * Tokens, taken from the Claude Design mockups (project "Guitar Practice
+ * Companion screens", 2026-08-15). The dark palette was already close — same
+ * accent, same background — so this is mostly a tightening: a third surface
+ * level for insets, a translucent border rather than a fixed grey, and the
+ * muted text nudged cooler.
+ */
 :root {
   --accent: #7c5cff;
   --accent-soft: #a08cff;
+  /* Accent at low alpha, for active pills and washes. */
+  --accent-wash: rgba(124, 92, 255, 0.16);
   --bg: #12101f;
   --bg-elevated: #1b1830;
-  --border: #2c2845;
-  --text: #f0edff;
-  --text-muted: #a6a0c4;
+  /* One level deeper than elevated: insets, diagram plates, empty meters. */
+  --bg-inset: #241f3d;
+  --border: rgba(255, 255, 255, 0.07);
+  --text: #f4f2ff;
+  --text-muted: #9a94b8;
   --ok: #4ade80;
   --pending: #fbbf24;
   --error: #fb7185;
-  --radius: 16px;
-  --radius-sm: 10px;
+  --radius: 20px;
+  --radius-sm: 12px;
+  --radius-pill: 999px;
 
   color-scheme: dark light;
 }
 
 @media (prefers-color-scheme: light) {
   :root {
-    --bg: #f7f5ff;
+    --accent: #6a45f5;
+    --accent-soft: #5b3fd6;
+    --accent-wash: rgba(106, 69, 245, 0.1);
+    --bg: #f7f5fc;
     --bg-elevated: #ffffff;
-    --border: #e2ddf5;
-    --text: #1b1830;
-    --text-muted: #625c85;
-    --ok: #16a34a;
+    --bg-inset: #e2ddf1;
+    --border: rgba(23, 20, 42, 0.09);
+    --text: #17142a;
+    --text-muted: #635d7e;
+    --ok: #15803d;
     --pending: #b45309;
     --error: #dc2626;
   }
@@ -160,9 +176,7 @@ code {
 .topbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
-  flex-wrap: wrap;
   max-width: 640px;
   margin: 0 auto;
   padding-bottom: 16px;
@@ -1126,29 +1140,57 @@ code {
 
 .micnotice {
   margin: 0 0 16px;
-  padding: 14px;
-  border-radius: var(--radius-sm);
-  border: 1px solid color-mix(in srgb, var(--pending) 40%, transparent);
-  background: color-mix(in srgb, var(--pending) 8%, transparent);
 }
 
 .micnotice__headline {
-  margin: 0 0 6px;
+  margin: 0 0 10px;
+  font-size: 1.6rem;
   font-weight: 700;
-  color: var(--pending);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
 }
 
 .micnotice__explanation {
-  margin: 0 0 10px;
-  font-size: 0.9rem;
+  margin: 0 0 18px;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.micnotice__actions .button {
+  width: 100%;
 }
 
 .micnotice__steps {
-  margin: 0 0 12px;
-  padding-left: 20px;
+  list-style: none;
+  counter-reset: micstep;
+  margin: 0 0 16px;
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg-inset) 60%, transparent);
   font-size: 0.9rem;
   display: grid;
-  gap: 4px;
+  gap: 12px;
+}
+
+.micnotice__steps li {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  align-items: start;
+  gap: 12px;
+  counter-increment: micstep;
+}
+
+.micnotice__steps li::before {
+  content: counter(micstep);
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent-wash);
+  color: var(--accent-soft);
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 .micnotice__actions {
@@ -1200,6 +1242,29 @@ code {
 }
 
 /* Shell: menus, breadcrumbs, tab bar ------------------------------------- */
+
+.topbar__where {
+  flex: 1;
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.topbar__offline {
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--pending) 14%, transparent);
+  color: var(--pending);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.crumbs--hidden {
+  display: none;
+}
 
 .topbar__home {
   display: grid;
@@ -1265,9 +1330,28 @@ code {
   padding-bottom: 96px;
 }
 
+.section-head {
+  margin: 0 0 4px;
+}
+
+.section-head__eyebrow {
+  margin: 0 0 2px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.section-head__title {
+  margin: 0;
+  font-size: 2.1rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
 .menu__lead {
-  max-width: 640px;
-  margin: 0 auto;
+  margin: 0;
   color: var(--text-muted);
 }
 
@@ -1283,9 +1367,9 @@ code {
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
-  gap: 4px 12px;
+  gap: 6px 12px;
   width: 100%;
-  padding: 18px 20px;
+  padding: 20px 22px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -1315,14 +1399,36 @@ code {
 }
 
 .menu__mic {
-  padding: 2px 7px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-wash);
   color: var(--accent-soft);
-  font-size: 0.66rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+/* The dot the design puts before the word, drawn rather than typed. */
+.menu__mic::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* The first row of a menu is the one you came for. */
+.menu li:first-child .menu__item {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 12%, var(--bg-elevated)),
+    var(--bg-elevated)
+  );
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
 .menu__blurb {
@@ -1355,25 +1461,158 @@ code {
 }
 
 .tabbar__tab {
-  padding: 10px 6px;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 8px 6px;
   background: none;
   border: 0;
   border-radius: var(--radius-sm);
   color: var(--text-muted);
   font: inherit;
-  font-size: 0.85rem;
+  font-size: 0.72rem;
   font-weight: 600;
   cursor: pointer;
 }
 
+.tabbar__icon {
+  display: block;
+}
+
 .tabbar__tab--active {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  background: var(--accent-wash);
   color: var(--accent-soft);
 }
 
 .tabbar__tab:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
+}
+
+/* Auto session ------------------------------------------------------------ */
+
+.auto {
+  display: grid;
+  gap: 16px;
+}
+
+.auto__intro {
+  display: grid;
+  gap: 8px;
+}
+
+.auto__headline {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.auto__lead {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+/* The rail: one segment per activity, the current one widened and lit. */
+.rail {
+  display: flex;
+  gap: 6px;
+  height: 8px;
+}
+
+.rail__seg {
+  position: relative;
+  flex: 1;
+  border-radius: 6px;
+  background: var(--bg-inset);
+  overflow: hidden;
+}
+
+.rail__seg--done {
+  background: var(--accent);
+}
+
+.rail__seg--now {
+  flex: 1.6;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.rail__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--accent);
+}
+
+.rail__legend {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.auto__stage {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: 24px 18px 28px;
+  background: var(--bg-inset);
+  border-radius: var(--radius);
+}
+
+.auto__eyebrow {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.auto__title {
+  margin: 0;
+  font-size: clamp(2rem, 11vw, 3.4rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.auto__coaching {
+  margin: 0;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.auto__tempo {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.auto__actions {
+  display: grid;
+  gap: 10px;
+}
+
+.auto__rationale {
+  margin: 0;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.button--block {
+  width: 100%;
+  padding: 18px;
+  font-size: 1rem;
+  border-radius: var(--radius);
 }
 
 @keyframes pulse {

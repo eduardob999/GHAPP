@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
-import { signOutUser } from '../auth';
 import {
   HOME_NODE_ID,
   NAV_ROOT,
@@ -15,6 +14,7 @@ import {
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { AccountPanel } from './AccountPanel';
 import { AppMark } from './AppMark';
+import { AutoSessionPanel } from './AutoSessionPanel';
 import { ChordHeroPanel } from './ChordHeroPanel';
 import { CompanionCard } from './CompanionCard';
 import { PracticePanel } from './PracticePanel';
@@ -43,13 +43,8 @@ interface AppShellProps {
   user: User;
 }
 
-function firstName(displayName: string | null): string {
-  return displayName?.trim().split(/\s+/)[0] ?? 'friend';
-}
-
 export function AppShell({ user }: AppShellProps) {
   const online = useOnlineStatus();
-  const [signingOut, setSigningOut] = useState(false);
   const [nodeId, setNodeId] = useState<string>(() => nodeFromHash(window.location.hash).id);
 
   // Hand-offs between screens: Today's Session can send a shape to the trainer
@@ -77,7 +72,10 @@ export function AppShell({ user }: AppShellProps) {
   }, []);
 
   const node = nodeFromHash(hashFor(nodeId));
-  const trail = pathTo(node.id)?.slice(1, -1) ?? [];
+  // Drop the root, the parent (the back link already names it) and the node
+  // itself (the "here" crumb does). What is left is the middle of a deep tree —
+  // empty today, and correct when the tree grows.
+  const trail = pathTo(node.id)?.slice(1, -2) ?? [];
   // No back link out of a section: the tab bar already holds every section, and
   // a breadcrumb whose only destination is "the list of things in the tab bar"
   // is a rung on a ladder to nowhere.
@@ -99,16 +97,6 @@ export function AppShell({ user }: AppShellProps) {
     },
     [go],
   );
-
-  async function handleSignOut() {
-    setSigningOut(true);
-    try {
-      await signOutUser();
-    } catch (err) {
-      console.error('[auth] Sign-out failed.', err);
-      setSigningOut(false);
-    }
-  }
 
   function renderScreen(screen: ScreenId) {
     switch (screen) {
@@ -145,27 +133,7 @@ export function AppShell({ user }: AppShellProps) {
       case 'account':
         return <AccountPanel user={user} />;
       case 'auto':
-        // Item 11. Deliberately not a fake: it says what it is and puts the
-        // thing that does work one tap away.
-        return (
-          <section className="card">
-            <div className="card__header">
-              <h2 className="card__title">Auto session</h2>
-              <span className="pill">next up</span>
-            </div>
-            <p className="card__body">
-              The coached session — where the app picks what to practise, sets the tempo and moves
-              you on with nothing to configure — is the next thing being built.
-            </p>
-            <button
-              type="button"
-              className="button button--primary"
-              onClick={() => go('practise.today')}
-            >
-              Use Today&apos;s Session for now →
-            </button>
-          </section>
-        );
+        return <AutoSessionPanel user={user} />;
     }
   }
 
@@ -178,34 +146,25 @@ export function AppShell({ user }: AppShellProps) {
           onClick={() => go(HOME_NODE_ID)}
           aria-label="Home"
         >
-          <AppMark size={32} />
+          <AppMark size={28} />
         </button>
-
-        <div className="topbar__identity">
-          <div>
-            <p className="topbar__greeting">Hello, {firstName(user.displayName)}!</p>
-            <p className="topbar__email">{online ? user.email : 'offline — everything still works'}</p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          className="button button--ghost button--small"
-          onClick={() => void handleSignOut()}
-          disabled={signingOut}
-        >
-          {signingOut ? 'Signing out…' : 'Sign out'}
-        </button>
+        <p className="topbar__where">{node.title}</p>
+        {online ? null : (
+          <span className="topbar__offline" title="Offline — everything still works">
+            offline
+          </span>
+        )}
       </header>
 
-      <nav className="crumbs" aria-label="Breadcrumb">
+      <nav
+        className={`crumbs${parent ? '' : ' crumbs--hidden'}`}
+        aria-label="Breadcrumb"
+      >
         {parent ? (
           <button type="button" className="crumbs__back" onClick={() => go(parent.id)}>
             ← {parent.title}
           </button>
-        ) : (
-          <span className="crumbs__back crumbs__back--disabled">Practice</span>
-        )}
+        ) : null}
 
         {trail.map((crumb) => (
           <button key={crumb.id} type="button" className="crumbs__crumb" onClick={() => go(crumb.id)}>
@@ -222,6 +181,10 @@ export function AppShell({ user }: AppShellProps) {
           renderScreen(node.screen!)
         ) : (
           <>
+            <header className="section-head">
+              <p className="section-head__eyebrow">Seven minutes before dinner</p>
+              <h1 className="section-head__title">{node.title}</h1>
+            </header>
             {node.blurb ? <p className="menu__lead">{node.blurb}</p> : null}
             <ul className="menu" data-testid="menu">
               {(node.children ?? []).map((child: NavNode) => (
@@ -265,6 +228,7 @@ export function AppShell({ user }: AppShellProps) {
               aria-current={active ? 'page' : undefined}
               data-tab={section.id}
             >
+              <TabIcon section={section.id} />
               {section.title}
             </button>
           );
@@ -272,6 +236,55 @@ export function AppShell({ user }: AppShellProps) {
       </nav>
     </div>
   );
+}
+
+/**
+ * Tab icons, drawn rather than shipped.
+ *
+ * Four glyphs from the design mockups: a target for Practise, a fret window for
+ * Train, bars for Progress, a dial for Tools. Inline SVG so they render from the
+ * service worker cache like everything else, and so they take `currentColor`
+ * from the active state instead of needing two files each.
+ */
+function TabIcon({ section }: { section: string }) {
+  const common = {
+    width: 22,
+    height: 22,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.8,
+    'aria-hidden': true,
+    className: 'tabbar__icon',
+  } as const;
+
+  switch (section) {
+    case 'practise':
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="9" />
+          <circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none" />
+        </svg>
+      );
+    case 'train':
+      return (
+        <svg {...common}>
+          <rect x="4.5" y="4.5" width="15" height="15" rx="4" />
+        </svg>
+      );
+    case 'progress':
+      return (
+        <svg {...common} strokeLinecap="round">
+          <path d="M6 15v4M12 10v9M18 6v13" />
+        </svg>
+      );
+    default:
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="8.5" />
+        </svg>
+      );
+  }
 }
 
 /**

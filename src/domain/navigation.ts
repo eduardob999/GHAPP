@@ -134,14 +134,13 @@ export const NAV_ROOT: NavNode = {
 };
 
 /**
- * The node the app opens on.
+ * The node the app opens on: coaching immediately, nothing to configure.
  *
- * This becomes `practise.auto` — coaching immediately, nothing to configure —
- * as soon as that screen exists (item 11 in `docs/NEXT.md`). Until then it opens
- * on the Practise menu, because landing every launch on a placeholder is worse
- * than landing on a menu.
+ * The whole point of the auto session is that opening the app *is* starting to
+ * practise. Anything else here — a home screen, a menu — is a decision asked of
+ * someone who is holding a guitar and has seven minutes.
  */
-export const HOME_NODE_ID = 'practise';
+export const HOME_NODE_ID = 'practise.auto';
 
 /**
  * The path from the root to a node, root first, or null when there is no such

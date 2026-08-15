@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import type { User } from 'firebase/auth';
+import { signOutUser } from '../auth';
 import type { Timestamp } from 'firebase/firestore';
 import { persistenceStatus } from '../firebase';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -28,6 +30,17 @@ function formatTimestamp(value: Timestamp | null): string {
 export function AccountPanel({ user }: { user: User }) {
   const online = useOnlineStatus();
   const { profile, fromCache, hasPendingWrites, loading, error } = useUserProfile(user);
+  const [signingOut, setSigningOut] = useState(false);
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    try {
+      await signOutUser();
+    } catch (err) {
+      console.error('[auth] Sign-out failed.', err);
+      setSigningOut(false);
+    }
+  }
 
   function handlePracticePing() {
     // Deliberately not awaited: offline, this promise stays pending until the
@@ -98,6 +111,15 @@ export function AccountPanel({ user }: { user: User }) {
         Go offline and press it a few times: the counter moves straight away, the badge turns
         amber, and the writes land on the server the moment you reconnect.
       </p>
+
+      <button
+        type="button"
+        className="button button--ghost"
+        onClick={() => void handleSignOut()}
+        disabled={signingOut}
+      >
+        {signingOut ? 'Signing out…' : 'Sign out'}
+      </button>
     </section>
   );
 }
