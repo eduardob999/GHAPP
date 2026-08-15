@@ -61,6 +61,35 @@ always the next thing to do.
 
 ## Next
 
+Set as top priority on 2026-08-15. The app is a set of separate tools that
+happen to share a shell; it should be one game that listens, scores everything,
+and decides for you.
+
+- [ ] **16. FSRS, adapting.** Replace the SM-2-ish ease/interval with FSRS —
+      difficulty, stability and retrievability per skill, with the parameters
+      adapting to this player's own review history rather than staying at the
+      published defaults. Pure `src/domain/fsrs.ts`, and `scheduleNext` becomes
+      a thin adapter so nothing else has to change at once.
+- [ ] **17. Everything is scored by ear.** No mode is self-graded any more. The
+      fretting trainer must *hear* the chord it asked for; the string sniper
+      already hears and must file what it hears; Today's Session stops asking
+      "how did that feel". Manual grading survives only as the microphone-denied
+      fallback.
+- [ ] **18. Teach before test.** A chord may not appear in Chord Hero, a song or
+      the auto session until its shape has been taught in the fretting trainer
+      and heard cleanly at least once. Needs a chord → shape map and a gate over
+      the content the director may pick from.
+- [ ] **19. Chord Hero, no setup.** Slowest tempo is the default, everything
+      else is remembered or decided. Picking a progression should be one tap
+      from a short list, not four segmented controls.
+- [ ] **20. Songs.** Easy pop songs as playable progressions — chord charts
+      only, no lyrics or melodies — scored like everything else, with a Songs
+      section that says which ones you can already play.
+- [ ] **21. One game, not five tools.** A single scored flow: every activity
+      hands to the next inside the auto session with no navigation, one running
+      score, and the companion reacting to what just happened. The separate
+      panels stay as practice rooms but stop being the main way in.
+
 Drawn from what `docs/ROADMAP.md` still lists as missing, plus the UI direction
 set on 2026-08-15: the app is six panels stacked on one scrolling page, and it
 should be a tree of menus with one automatic mode at the root.
