@@ -61,6 +61,15 @@ always the next thing to do.
 
 ## Next
 
+- [ ] **22. No timer — the playing drives it.** The auto session advances on a
+      countdown: every activity carries `seconds`, and it moves on when the
+      clock runs out whether or not a note was played. That makes the timer the
+      real scheduler and FSRS a bystander. An activity should end when there is
+      *evidence* — enough clean frames to call it, or enough heard frames to
+      judge it — and silence should advance nothing at all: put the guitar down
+      and it waits. Also: the whole session must fit on one screen, with no
+      scrolling and no countdown taking up room.
+
 Set as top priority on 2026-08-15. The app is a set of separate tools that
 happen to share a shell; it should be one game that listens, scores everything,
 and decides for you.
