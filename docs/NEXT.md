@@ -65,13 +65,13 @@ Drawn from what `docs/ROADMAP.md` still lists as missing, plus the UI direction
 set on 2026-08-15: the app is six panels stacked on one scrolling page, and it
 should be a tree of menus with one automatic mode at the root.
 
-- [ ] **10. A tree, not a stack.** Six panels on one page is a debug harness,
+- [x] **10. A tree, not a stack.** Six panels on one page is a debug harness,
       not an app. A navigation tree with a back stack: Practise / Train /
       Progress / Tools, each panel a leaf. No router dependency — a pure
       `src/domain/navigation.ts` describing the tree, a shell component walking
       it, and the location mirrored into `location.hash` so a reload and the
       installed PWA both come back where you were.
-- [ ] **11. Auto session — the main mode.** What the app opens on: it starts
+- [x] **11. Auto session — the main mode.** What the app opens on: it starts
       coaching immediately, with no configuration at all. A pure director
       (`src/domain/autoSession.ts`) builds a script of activities from skill
       state, the streak and the time of day, then advances through them on its
@@ -82,11 +82,20 @@ should be a tree of menus with one automatic mode at the root.
       the tree for when you want to pick something specific.
       Decisions taken with the user: land straight in the auto session; one
       continuous coached flow rather than handing off to each panel.
-- [ ] **12. Design system.** Once 10 and 11 land, push the component previews to
-      a claude.ai/design design-system project through `DesignSync`, so the look
-      can be iterated visually and read back into `src/styles.css`. Deliberately
-      after the structure: syncing the current stacked layout would be designing
-      the thing we are replacing.
+      Done: `src/domain/autoSession.ts` is the director (pure),
+      `AutoSessionPanel` the surface. `HOME_NODE_ID` is now `practise.auto`.
+- [x] **12. Design system.** Partly done, differently than planned. The user's
+      design came back as a *regular* Claude Design project, not a design-system
+      one — `DesignSync.list_projects` only lists design-system projects, so it
+      was invisible until the project id was known, and `get_file` read it fine.
+      The mockups are static inline-styled phones rather than a component
+      library, so the palette and component anatomy were extracted and rebuilt.
+      **Still open:** a two-way sync would need a design-system project, which
+      has to be created as one — the type is immutable.
+- [ ] **12b. Screens still to match the mockups.** Chord Hero playing (1c) and
+      Progress (1d) have designs that have not been applied: the lane of coming
+      chords, the beat pips, the verdict strip, the streak card and the badge
+      grid.
 
 - [ ] **13. Accessibility pass.** Milestone 6: keyboard-only practice, screen
       reader labels on every live region, visible focus, and a reduced-motion
