@@ -10,6 +10,7 @@ import {
   type StructuredSession,
 } from '../domain/sessionPlanner';
 import { hasDiagram } from '../domain/shapeTrainer';
+import { targetChordFor } from '../domain/earGrading';
 import { progressionIdFromSkillId, progressionsForSkill } from '../domain/progressions';
 import { appendSession } from '../storage/sessionLog';
 import {
@@ -86,12 +87,15 @@ export interface PracticePanelProps {
   onOpenInTrainer?: (skillId: string) => void;
   /** Hands a scheduled progression to Chord Hero so it can actually be played. */
   onOpenInChordHero?: (progressionId: string) => void;
+  /** Hands a single-string picking skill to the sniper, which scores it. */
+  onOpenInSniper?: (skillId: string) => void;
 }
 
 export function PracticePanel({
   user,
   onOpenInTrainer,
   onOpenInChordHero,
+  onOpenInSniper,
 }: PracticePanelProps) {
   const { states, loading, error } = useSkillStates(user.uid);
 
@@ -201,8 +205,8 @@ export function PracticePanel({
       ) : (
         <>
           <p className="card__body">
-            Read each task, play it, then say how it felt. Grading is what schedules the next
-            visit — be honest rather than generous.
+            Play each one. The microphone scores it and schedules the next visit — nothing here
+            asks you to mark your own work.
           </p>
 
           {PHASES.map(({ key, phase, title, blurb }) => {
@@ -249,48 +253,62 @@ export function PracticePanel({
                       {dueAt ? ` — back ${formatDue(dueAt, now)}` : ' — saved'}
                     </p>
                   ) : (
-                    <div className="task__grades">
-                      {RESULTS.map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          className={`button button--grade ${option.variant}`}
-                          onClick={() => grade(definition.id, option.value)}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
+                    (() => {
+                      /*
+                       * Anything the microphone can judge is played, not
+                       * self-reported: the card routes into the mode that
+                       * listens, and the grade comes from there. Self-grading
+                       * survives only for the skills nothing can hear yet —
+                       * fingerstyle patterns, theory items — where the
+                       * alternative is no scheduling at all.
+                       */
+                      const progressionId =
+                        progressionIdFromSkillId(definition.id) ??
+                        progressionsForSkill(definition.id)[0]?.id;
+                      // A single-string picking drill is scored strike by
+                      // strike, so it is heard too.
+                      const sniperSkill = /^picking\.single\./.test(definition.id);
+                      const canBeHeard =
+                        (hasDiagram(definition) && targetChordFor(definition) !== null) ||
+                        Boolean(progressionId) ||
+                        sniperSkill;
+
+                      if (canBeHeard) {
+                        return (
+                          <button
+                            type="button"
+                            className="button button--primary"
+                            data-testid="play-it"
+                            onClick={() =>
+                              progressionId
+                                ? onOpenInChordHero?.(progressionId)
+                                : sniperSkill
+                                  ? onOpenInSniper?.(definition.id)
+                                  : onOpenInTrainer?.(definition.id)
+                            }
+                          >
+                            Play it →
+                          </button>
+                        );
+                      }
+
+                      return (
+                        <div className="task__grades">
+                          {RESULTS.map((option) => (
+                            <button
+                              key={option.value}
+                              type="button"
+                              className={`button button--grade ${option.variant}`}
+                              onClick={() => grade(definition.id, option.value)}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })()
                   )}
 
-                  {onOpenInTrainer && hasDiagram(definition) ? (
-                    <button
-                      type="button"
-                      className="task__link"
-                      onClick={() => onOpenInTrainer(definition.id)}
-                    >
-                      Open in Fretting Trainer →
-                    </button>
-                  ) : null}
-
-                  {(() => {
-                    // Two routes into Chord Hero: a progression card *is* a
-                    // progression, and a hand-written picking skill may have a
-                    // riff written to drill it.
-                    const progressionId =
-                      progressionIdFromSkillId(definition.id) ??
-                      progressionsForSkill(definition.id)[0]?.id;
-
-                    return onOpenInChordHero && progressionId ? (
-                      <button
-                        type="button"
-                        className="task__link"
-                        onClick={() => onOpenInChordHero(progressionId)}
-                      >
-                        Play in Chord Hero →
-                      </button>
-                    ) : null;
-                  })()}
                 </li>
               );
             })}

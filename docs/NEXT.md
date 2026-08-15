@@ -70,11 +70,14 @@ and decides for you.
       adapting to this player's own review history rather than staying at the
       published defaults. Pure `src/domain/fsrs.ts`, and `scheduleNext` becomes
       a thin adapter so nothing else has to change at once.
-- [ ] **17. Everything is scored by ear.** No mode is self-graded any more. The
+- [x] **17. Everything is scored by ear.** No mode is self-graded any more. The
       fretting trainer must *hear* the chord it asked for; the string sniper
       already hears and must file what it hears; Today's Session stops asking
       "how did that feel". Manual grading survives only as the microphone-denied
       fallback.
+      Done: the trainer hears its chord, the sniper scores sets of eight and
+      files them, and Today's Session routes every card the microphone can
+      judge — 10 of 10 on a fresh account — into the mode that listens.
 - [ ] **18. Teach before test.** A chord may not appear in Chord Hero, a song or
       the auto session until its shape has been taught in the fretting trainer
       and heard cleanly at least once. Needs a chord → shape map and a gate over

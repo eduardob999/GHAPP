@@ -52,6 +52,7 @@ export function AppShell({ user }: AppShellProps) {
   // that can also do the navigating.
   const [trainerSkillId, setTrainerSkillId] = useState<string | null>(null);
   const [heroProgressionId, setHeroProgressionId] = useState<string | null>(null);
+  const [sniperSkillId, setSniperSkillId] = useState<string | null>(null);
 
   const go = useCallback((id: string) => {
     setNodeId(id);
@@ -90,6 +91,14 @@ export function AppShell({ user }: AppShellProps) {
     [go],
   );
 
+  const openInSniper = useCallback(
+    (skillId: string) => {
+      setSniperSkillId(skillId);
+      go('train.sniper');
+    },
+    [go],
+  );
+
   const openInChordHero = useCallback(
     (progressionId: string) => {
       setHeroProgressionId(progressionId);
@@ -106,6 +115,7 @@ export function AppShell({ user }: AppShellProps) {
             user={user}
             onOpenInTrainer={openInTrainer}
             onOpenInChordHero={openInChordHero}
+            onOpenInSniper={openInSniper}
           />
         );
       case 'chord-hero':
@@ -125,7 +135,13 @@ export function AppShell({ user }: AppShellProps) {
           />
         );
       case 'sniper':
-        return <StringSniperPanel />;
+        return (
+          <StringSniperPanel
+            user={user}
+            requestedSkillId={sniperSkillId}
+            onRequestHandled={() => setSniperSkillId(null)}
+          />
+        );
       case 'tuner':
         return <TunerPanel />;
       case 'companion':

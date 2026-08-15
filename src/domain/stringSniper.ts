@@ -240,3 +240,72 @@ export function targetNoteLabel(config: StringSniperConfig): string {
   if (!low || !high) return '—';
   return lo === hi ? low.label : `${low.label}–${high.label}`;
 }
+
+/* ── Scoring a set of strikes ──────────────────────────────────────────────── */
+
+/**
+ * The catalog skill a sniper run practises, when there is one.
+ *
+ * The drill was free practice: results shown and thrown away. Nothing about the
+ * playing was uncertain — the microphone had already judged every strike — so
+ * discarding it meant the one mode that *was* objectively scored contributed
+ * nothing to the schedule.
+ */
+export function sniperSkillId(config: StringSniperConfig): string | null {
+  switch (config.targetString) {
+    case 3:
+      return 'picking.single.3rd-string';
+    case 4:
+      return 'picking.single.4th-string';
+    case 5:
+      return 'picking.single.5th-string';
+    case 1:
+      return 'picking.single.1st-string.bare';
+    default:
+      return null;
+  }
+}
+
+/** Strikes in a scored set. Short enough to stay inside one held breath. */
+export const STRIKES_PER_SET = 8;
+
+export interface SniperSetSummary {
+  hits: number;
+  wrongString: number;
+  offPitch: number;
+  total: number;
+  accuracy: number;
+}
+
+export function summariseStrikes(results: readonly SniperHitResult[]): SniperSetSummary {
+  const scored = results.filter((r) => r !== 'no_signal');
+  const hits = scored.filter((r) => r === 'hit').length;
+
+  return {
+    hits,
+    wrongString: scored.filter((r) => r === 'wrong_string').length,
+    offPitch: scored.filter((r) => r === 'off_pitch').length,
+    total: scored.length,
+    accuracy: scored.length > 0 ? hits / scored.length : 0,
+  };
+}
+
+/**
+ * A set of strikes as a grade.
+ *
+ * Returns null for a set nobody played — the same rule as ear grading: silence
+ * is not failure, and filing it would teach the scheduler about an event that
+ * never happened.
+ *
+ * The bar is high because the task is narrow. Picking one named string, with
+ * the fret range you chose, is not supposed to be a coin toss: eight from eight
+ * is the point of the drill, and six is a pass rather than a triumph.
+ */
+export function gradeSniperSet(summary: SniperSetSummary): 'easy' | 'good' | 'hard' | 'fail' | null {
+  if (summary.total < 3) return null;
+
+  if (summary.accuracy >= 0.95) return 'easy';
+  if (summary.accuracy >= 0.75) return 'good';
+  if (summary.accuracy >= 0.4) return 'hard';
+  return 'fail';
+}
