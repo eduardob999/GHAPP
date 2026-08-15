@@ -4,11 +4,32 @@ import { createChimePlayer, type ChimePlayer } from '../audio/chime';
 import {
   buildAutoSession,
   definitionFor,
+  describeSession,
   isFinished,
   progressAt,
+  scoreSession,
   type Activity,
+  type ActivityOutcome,
   type AutoSessionScript,
 } from '../domain/autoSession';
+import { useChordDetector } from '../hooks/useChordDetector';
+import {
+  describeEarResult,
+  gradeByEar,
+  targetChordFor,
+  type HeardChord,
+} from '../domain/earGrading';
+import {
+  PROGRESSION_BY_ID,
+  chordAt,
+  gradeFromSummary,
+  scoreWindow,
+  scoreRiffWindow,
+  summarise,
+  type ChordScore,
+} from '../domain/progressions';
+import { shortChordLabel } from '../audio/chordDetection';
+import { MicNotice } from './MicNotice';
 import { toDiagram } from '../domain/shapeTrainer';
 import { upsertSkillPracticeState } from '../storage/skillsState';
 import { appendSession } from '../storage/sessionLog';
@@ -41,6 +62,9 @@ interface AutoSessionPanelProps {
 type Phase = 'ready' | 'running' | 'paused' | 'finished';
 
 const TICK_MS = 250;
+
+/** How often the microphone is sampled into the activity's buffer. */
+const SAMPLE_MS = 100;
 
 function formatClock(seconds: number): string {
   const whole = Math.max(0, Math.round(seconds));
@@ -75,14 +99,53 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
   const [index, setIndex] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [script, setScript] = useState<AutoSessionScript | null>(null);
+  const [outcomes, setOutcomes] = useState<ActivityOutcome[]>([]);
+  const [lastDetail, setLastDetail] = useState<string | null>(null);
+
+  const {
+    currentChord,
+    currentNote,
+    error: micError,
+    errorCode,
+    isRunning: micRunning,
+    isStarting,
+    start: startListening,
+    stop: stopListening,
+    reset: resetDetector,
+  } = useChordDetector();
+
+  /**
+   * Everything heard during the current activity.
+   *
+   * One microphone, one buffer, read differently per activity kind — a chord
+   * shape wants frames of chords, a progression wants them bucketed by step,
+   * a riff wants note names. Collecting once and interpreting at the end keeps
+   * a single listening path rather than four.
+   */
+  const frames = useRef<HeardChord[]>([]);
+  const notes = useRef<string[]>([]);
+  const stepFrames = useRef<Map<string, HeardChord[]>>(new Map());
+  const stepNotes = useRef<Map<string, string[]>>(new Map());
+  const activityStartedAt = useRef(0);
+  /**
+   * Read by the sampling effect above.
+   *
+   * An effect that fires on every detector frame would otherwise capture the
+   * script and index from the render that created it — the same stale-closure
+   * bug this project has hit twice before, and the reason both are refs.
+   */
+  const scriptRef = useRef<AutoSessionScript | null>(null);
+  const indexRef = useRef(0);
+  const outcomesRef = useRef<ActivityOutcome[]>([]);
 
   const chime = useRef<ChimePlayer | null>(null);
   useEffect(
     () => () => {
       chime.current?.close();
       chime.current = null;
+      stopListening();
     },
-    [],
+    [stopListening],
   );
 
   const recentAccuracy = useMemo(
@@ -90,68 +153,226 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
     [sessions],
   );
 
+  const progressionOf = (activity: Activity | null) =>
+    activity?.progressionId ? (PROGRESSION_BY_ID.get(activity.progressionId) ?? null) : null;
+
+  // Latest reading from the detector, for the sampler below.
+  const latestChord = useRef<HeardChord>(null);
+  const latestNote = useRef<string | null>(null);
+
+  useEffect(() => {
+    latestChord.current = currentChord
+      ? { root: currentChord.root, quality: currentChord.quality }
+      : null;
+  }, [currentChord]);
+
+  useEffect(() => {
+    latestNote.current = currentNote;
+  }, [currentNote]);
+
+  /**
+   * One sampler for the whole session, on a fixed clock.
+   *
+   * **Not** driven by detector updates, which was the first attempt and was
+   * wrong: the pitch detector republishes every 30 ms while the chord detector
+   * publishes eight times a second, so an effect keyed on both pushed a chord
+   * frame — usually `null` — on every *note* flicker. The buffer filled with
+   * nulls, the heard-share fell under the threshold, and a correctly played
+   * chord was reported as "not heard". A steady sample rate makes each frame
+   * mean the same thing, which is what the scorers assume.
+   */
+  useEffect(() => {
+    if (phase !== 'running') return;
+
+    const handle = window.setInterval(() => {
+      const script_ = scriptRef.current;
+      const activity = script_?.activities[indexRef.current];
+      if (!activity) return;
+
+      if (activity.kind === 'shape' || activity.kind === 'tune') {
+        frames.current.push(latestChord.current);
+        if (latestNote.current) notes.current.push(latestNote.current);
+        return;
+      }
+
+      const progression = progressionOf(activity);
+      if (!progression) return;
+
+      // Judge each frame against the step that was actually sounding.
+      const step = chordAt(
+        progression,
+        activity.tempoBpm ?? progression.tempoBpm,
+        performance.now() - activityStartedAt.current,
+      );
+      if (!step) return;
+
+      if (step.chord.mode === 'riff') {
+        const bucket = stepNotes.current.get(step.chord.id) ?? [];
+        if (latestNote.current) bucket.push(latestNote.current);
+        stepNotes.current.set(step.chord.id, bucket);
+      } else {
+        const bucket = stepFrames.current.get(step.chord.id) ?? [];
+        bucket.push(latestChord.current);
+        stepFrames.current.set(step.chord.id, bucket);
+      }
+    }, SAMPLE_MS);
+
+    return () => window.clearInterval(handle);
+  }, [phase]);
+
   // Built once per sitting, when Play is pressed. Rebuilding it live would mean
   // the session changing shape underneath someone mid-activity.
-  const start = useCallback(() => {
-    setScript(
-      buildAutoSession({
+  const start = useCallback(
+    async (mode: 'listen' | 'silent' = 'listen') => {
+      resetDetector();
+
+      // Never start a scored session on a microphone that did not open: every
+      // activity would be judged on silence.
+      // Never start a scored session on a microphone that did not open: every
+      // activity would be judged on silence.
+      if (mode === 'listen' && !(await startListening())) return;
+
+      const built = buildAutoSession({
         states,
         streak,
         now: new Date(),
         recentAccuracy,
+        canListen: mode === 'listen',
         ...(minutes !== undefined ? { minutes } : {}),
-      }),
-    );
-    setIndex(0);
-    setElapsed(0);
-    setPhase('running');
-  }, [states, streak, recentAccuracy, minutes]);
+      });
+
+      scriptRef.current = built;
+      indexRef.current = 0;
+      outcomesRef.current = [];
+      frames.current = [];
+      notes.current = [];
+      stepFrames.current = new Map();
+      stepNotes.current = new Map();
+      activityStartedAt.current = performance.now();
+
+      setScript(built);
+      setOutcomes([]);
+      setLastDetail(null);
+      setIndex(0);
+      setElapsed(0);
+      setPhase('running');
+    },
+    [states, streak, recentAccuracy, minutes, resetDetector, startListening],
+  );
 
   const progress = script ? progressAt(script, index) : null;
   const activity = progress?.activity ?? null;
 
-  /** Files one activity, then moves to the next. */
-  const advance = useCallback(() => {
-    if (!script) return;
+  /**
+   * What the microphone made of the activity that just ended.
+   *
+   * Each kind is judged by the module that already knows how: chord shapes by
+   * `gradeByEar`, progressions and riffs by the same scorers Chord Hero uses.
+   * The auto session adds no scoring rules of its own — a second set would
+   * disagree with the first eventually.
+   */
+  const judge = useCallback((activity: Activity): ActivityOutcome => {
+    const definitionForActivity = definitionFor(activity.skillId);
 
-    const current = script.activities[index];
-    if (current?.skillId) {
-      // Completing an activity is not the same as playing it well — the auto
-      // session has no verdict of its own, so it files the neutral grade and
-      // lets the drills that *do* score contribute the real ones.
+    if (activity.kind === 'tune') {
+      const heardAnything = notes.current.length > 0;
+      return {
+        activityId: activity.id,
+        grade: null, // Tuning is not a skill to schedule.
+        detail: heardAnything
+          ? `Heard ${notes.current[notes.current.length - 1]}. Tuned up.`
+          : 'Nothing heard — check the microphone before the next one.',
+      };
+    }
+
+    if (activity.kind === 'shape') {
+      const target = definitionForActivity ? targetChordFor(definitionForActivity) : null;
+      if (!target) return { activityId: activity.id, grade: null, detail: 'Nothing to score here.' };
+
+      const result = gradeByEar(target, frames.current);
+      return {
+        activityId: activity.id,
+        grade: result.grade,
+        detail: describeEarResult(target, result),
+      };
+    }
+
+    const progression = progressionOf(activity);
+    if (!progression) return { activityId: activity.id, grade: null, detail: '' };
+
+    const scores: ChordScore[] = progression.chords.map((step) =>
+      step.mode === 'riff'
+        ? scoreRiffWindow(step.notes ?? [], stepNotes.current.get(step.id) ?? []).score
+        : scoreWindow(step, stepFrames.current.get(step.id) ?? []).score,
+    );
+
+    const summary = summarise(scores);
+    const heardAnything = summary.total > summary.unclear;
+
+    return {
+      activityId: activity.id,
+      grade: heardAnything ? gradeFromSummary(summary) : null,
+      detail: heardAnything
+        ? `${summary.hit} of ${summary.total} clean.`
+        : 'Nothing heard for that one.',
+    };
+  }, []);
+
+  /** Scores the activity that just ended, files it, and moves on. */
+  const advance = useCallback(() => {
+    const current = scriptRef.current?.activities[indexRef.current];
+    if (!scriptRef.current || !current) return;
+
+    const outcome = judge(current);
+    outcomesRef.current = [...outcomesRef.current, outcome];
+    setOutcomes(outcomesRef.current);
+    setLastDetail(outcome.detail);
+
+    // Silence files nothing: an activity nobody played is not a failure, and
+    // filing it would teach the scheduler about an event that never happened.
+    if (current.skillId && outcome.grade) {
       void upsertSkillPracticeState(user.uid, {
         skillId: current.skillId,
-        result: 'good',
+        result: outcome.grade,
         current: states.find((s) => s.skillId === current.skillId) ?? null,
       }).catch((error: unknown) => {
         console.error('[auto] Could not file activity.', error);
       });
     }
 
-    const next = index + 1;
+    const next = indexRef.current + 1;
+    indexRef.current = next;
     setIndex(next);
     setElapsed(0);
+    frames.current = [];
+    notes.current = [];
+    stepFrames.current = new Map();
+    stepNotes.current = new Map();
+    activityStartedAt.current = performance.now();
 
-    if (isFinished(script, next)) {
+    if (isFinished(scriptRef.current, next)) {
+      const score = scoreSession(outcomesRef.current);
+
       setPhase('finished');
+      stopListening();
       chime.current ??= createChimePlayer();
-      chime.current.play('success');
+      chime.current.play(score.accuracy >= 0.65 ? 'success' : 'gentle');
 
       void appendSession(user.uid, {
         kind: 'today',
         subject: 'auto-session',
-        title: `Auto session — ${script.activities.length} activities`,
-        accuracy: 1,
-        steps: script.activities.length,
-        hits: script.activities.length,
+        title: `Auto session — ${scriptRef.current.activities.length} activities`,
+        accuracy: score.accuracy,
+        steps: score.scored,
+        hits: score.clean,
         partials: 0,
-        misses: 0,
-        graded: 'self',
+        misses: score.scored - score.clean,
+        graded: 'audio',
       }).catch((error: unknown) => {
         console.error('[auto] Session log write failed.', error);
       });
     }
-  }, [script, index, states, user.uid]);
+  }, [judge, states, stopListening, user.uid]);
 
   // The clock. One interval for the whole session rather than one per activity,
   // so a slow render cannot leave two running at once.
@@ -186,25 +407,61 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
             moves you on. Put the guitar in your hands and press play.
           </p>
         </div>
-        <button type="button" className="button button--primary button--block" onClick={start}>
-          Start the session
+        {errorCode ? (
+          <MicNotice
+            code={errorCode}
+            detail={micError}
+            onRetry={() => void start('listen')}
+            onContinueWithout={() => void start('silent')}
+            continueLabel="Run it without scoring"
+          />
+        ) : null}
+
+        <button
+          type="button"
+          className="button button--primary button--block"
+          onClick={() => void start('listen')}
+          disabled={isStarting}
+        >
+          {isStarting ? 'Waiting for microphone…' : 'Start the session'}
         </button>
       </section>
     );
   }
 
   if (phase === 'finished') {
+    const score = scoreSession(outcomes);
+
     return (
-      <section className="card auto">
+      <section className="card auto" data-testid="auto-finished">
         <div className="auto__intro">
           <p className="section-head__eyebrow">Done</p>
-          <h2 className="auto__headline">That is the session.</h2>
-          <p className="auto__lead">
-            {script.activities.length} activities, filed to your practice log. Come back tomorrow
-            and it will pick up where this left off.
-          </p>
+          <h2 className="auto__headline" data-testid="auto-points">
+            {score.points} points
+          </h2>
+          <p className="auto__lead">{describeSession(score)}</p>
         </div>
-        <button type="button" className="button button--primary button--block" onClick={start}>
+
+        <ul className="outcomes" data-testid="outcomes">
+          {outcomes.map((outcome, position) => {
+            const activity = script.activities[position];
+            return (
+              <li key={outcome.activityId} className="outcomes__row">
+                <span className="outcomes__title">{activity?.title ?? ''}</span>
+                <span className={`tag ${outcome.grade ? `grade--${outcome.grade}` : 'tag--muted'}`}>
+                  {outcome.grade ?? 'not heard'}
+                </span>
+                <span className="outcomes__detail">{outcome.detail}</span>
+              </li>
+            );
+          })}
+        </ul>
+
+        <button
+          type="button"
+          className="button button--primary button--block"
+          onClick={() => void start('listen')}
+        >
           Go again
         </button>
       </section>
@@ -238,6 +495,7 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
       </p>
 
       <div className="rail__legend">
+        <span data-testid="auto-points-live">{scoreSession(outcomes).points} pts</span>
         <span data-testid="auto-step">
           Step {index + 1} of {progress.total} · {activityLabel(activity)}
         </span>
@@ -270,6 +528,28 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
         {activity?.tempoBpm ? (
           <p className="auto__tempo" data-testid="auto-tempo">
             {activity.tempoBpm} BPM
+          </p>
+        ) : null}
+
+        {/* One line of live feedback, so the session is visibly listening. */}
+        <div
+          className={`verdict ${currentChord || currentNote ? 'verdict--hit' : 'verdict--idle'}`}
+          role="status"
+          data-testid="auto-hearing"
+          data-running={String(micRunning)}
+        >
+          {activity?.kind === 'tune' || activity?.kind === 'riff' || activity?.kind === 'sniper'
+            ? currentNote
+              ? `Hearing ${currentNote}`
+              : 'Listening…'
+            : currentChord
+              ? `Hearing ${shortChordLabel(currentChord.root, currentChord.quality)}`
+              : 'Listening…'}
+        </div>
+
+        {lastDetail ? (
+          <p className="auto__lastdetail" data-testid="auto-last">
+            {lastDetail}
           </p>
         ) : null}
       </div>

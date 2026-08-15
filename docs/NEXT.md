@@ -100,10 +100,13 @@ and decides for you.
       song names the chord in the way and links to the lesson. Found two more
       content gaps: open A major and open D minor were missing entirely, so the
       app would have taught them as barres.
-- [ ] **21. One game, not five tools.** A single scored flow: every activity
+- [x] **21. One game, not five tools.** A single scored flow: every activity
       hands to the next inside the auto session with no navigation, one running
       score, and the companion reacting to what just happened. The separate
       panels stay as practice rooms but stop being the main way in.
+      Done: the auto session plays and *scores* every activity inline on one
+      microphone, with a running point total and a per-activity verdict at the
+      end.
 
 Drawn from what `docs/ROADMAP.md` still lists as missing, plus the UI direction
 set on 2026-08-15: the app is six panels stacked on one scrolling page, and it
@@ -174,6 +177,10 @@ should be a tree of menus with one automatic mode at the root.
 - Components never import `db`; everything goes through `src/storage/`.
 - Never await a Firestore write for UI purposes — offline it stays pending for
   hours while the local cache already has the data.
+- Sample the microphone on a fixed clock, never on detector updates. The pitch
+  detector republishes every 30 ms and the chord detector eight times a second,
+  so an effect keyed on both pushes a chord frame — usually null — on every note
+  flicker, and a correctly played chord is scored as "not heard".
 - Measure before tuning DSP. Two findings recorded the hard way: harmonic
   suppression makes accuracy *worse*, and an 8192-sample window is exactly as
   accurate as 16384 at half the latency.

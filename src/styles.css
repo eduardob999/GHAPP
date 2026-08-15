@@ -1419,6 +1419,41 @@ code {
   font-size: 0.85rem;
 }
 
+/* Auto session: what each activity came to. */
+.outcomes {
+  list-style: none;
+  display: grid;
+  gap: 10px;
+  margin: 0 0 18px;
+  padding: 0;
+}
+
+.outcomes__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+}
+
+.outcomes__title {
+  font-weight: 600;
+}
+
+.outcomes__detail {
+  grid-column: 1 / -1;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.auto__lastdetail {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
 .skiplink {
   position: absolute;
   left: 12px;

@@ -3,7 +3,12 @@ import { planStructuredSession, type StructuredItem } from './sessionPlanner';
 import { hasDiagram, toDiagram } from './shapeTrainer';
 import { isUnlocked, lockStateOf } from './curriculum';
 import { fullCatalog } from './sessionPlanner';
-import { SKILL_CATALOG, type MicroSkillDefinition, type SkillPracticeState } from './skills';
+import {
+  SKILL_CATALOG,
+  type MicroSkillDefinition,
+  type PracticeResult,
+  type SkillPracticeState,
+} from './skills';
 import type { StreakSummary } from './streaks';
 
 /**
@@ -405,4 +410,63 @@ export function isFinished(script: AutoSessionScript, index: number): boolean {
 export function definitionFor(skillId: string | undefined): MicroSkillDefinition | null {
   if (!skillId) return null;
   return fullCatalog(SKILL_CATALOG).find((definition) => definition.id === skillId) ?? null;
+}
+
+/* ── Scoring the session ───────────────────────────────────────────────────── */
+
+/**
+ * What happened in one activity.
+ *
+ * The auto session used to file `good` for every activity that finished, which
+ * made the whole mode a participation trophy: it moved the schedule without
+ * ever finding out whether you played anything. Each activity now carries its
+ * own verdict, and `null` means the microphone had nothing to judge — silence
+ * files nothing, the same rule as everywhere else.
+ */
+export interface ActivityOutcome {
+  activityId: string;
+  grade: PracticeResult | null;
+  /** One line to show under the activity when it ends. */
+  detail: string;
+}
+
+export interface SessionScore {
+  /** Activities that produced a verdict. */
+  scored: number;
+  /** Of those, the ones that went well. */
+  clean: number;
+  /** 0–1 over scored activities only. */
+  accuracy: number;
+  /**
+   * A running number to show while playing.
+   *
+   * Points rather than a percentage, because a percentage falls when you
+   * attempt something hard and that is the wrong lesson for a practice app to
+   * teach. Points only go up; a rough activity simply earns fewer.
+   */
+  points: number;
+}
+
+const POINTS: Record<PracticeResult, number> = { easy: 100, good: 70, hard: 40, fail: 10 };
+
+export function scoreSession(outcomes: readonly ActivityOutcome[]): SessionScore {
+  const scored = outcomes.filter((outcome) => outcome.grade !== null);
+  const clean = scored.filter(
+    (outcome) => outcome.grade === 'easy' || outcome.grade === 'good',
+  ).length;
+
+  return {
+    scored: scored.length,
+    clean,
+    accuracy: scored.length > 0 ? clean / scored.length : 0,
+    points: scored.reduce((total, outcome) => total + POINTS[outcome.grade!], 0),
+  };
+}
+
+/** How the session went, in the app's voice, for the summary screen. */
+export function describeSession(score: SessionScore): string {
+  if (score.scored === 0) return 'Nothing was heard this time — check the microphone and go again.';
+  if (score.accuracy >= 0.85) return 'That was a good session. Most of it landed cleanly.';
+  if (score.accuracy >= 0.5) return 'Solid work. A few of those need another visit, and they will get one.';
+  return 'A rough one — which is what practice is for. The shaky ones come back sooner.';
 }
