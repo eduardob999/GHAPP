@@ -179,7 +179,6 @@ export function PracticePanel({
   return (
     <section className="card">
       <div className="card__header">
-        <h2 className="card__title">Today&apos;s Session</h2>
         {total > 0 ? (
           <span className="pill">
             {total - remaining} of {total} done

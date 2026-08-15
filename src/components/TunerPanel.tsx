@@ -23,7 +23,6 @@ export function TunerPanel() {
   return (
     <section className="card">
       <div className="card__header">
-        <h2 className="card__title">Tuner</h2>
         <span className="pill">beta</span>
       </div>
 

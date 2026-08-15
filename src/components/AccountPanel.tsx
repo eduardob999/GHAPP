@@ -54,7 +54,6 @@ export function AccountPanel({ user }: { user: User }) {
   return (
     <section className="card">
       <div className="card__header">
-        <h2 className="card__title">Account &amp; sync</h2>
         <SyncBadge online={online} fromCache={fromCache} hasPendingWrites={hasPendingWrites} />
       </div>
 

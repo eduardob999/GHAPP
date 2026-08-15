@@ -95,13 +95,22 @@ code {
   padding: 20px;
 }
 
+.card__header:empty {
+  display: none;
+}
+
 .card__header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
   flex-wrap: wrap;
   margin-bottom: 8px;
+}
+
+/* A header carrying a heading puts it first and spreads. */
+.card__header:has(.card__title) {
+  justify-content: space-between;
 }
 
 .card__title {
@@ -416,16 +425,15 @@ code {
 }
 
 .task__grades {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
 }
 
 .button--grade {
-  flex: 1 1 auto;
-  min-width: 72px;
-  padding: 8px 12px;
-  font-size: 0.85rem;
+  min-width: 0;
+  padding: 10px 6px;
+  font-size: 0.82rem;
   border-color: var(--border);
   background: var(--bg-elevated);
   color: var(--text);

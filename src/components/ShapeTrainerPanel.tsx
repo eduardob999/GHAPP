@@ -153,7 +153,6 @@ export function ShapeTrainerPanel({
     return (
       <section className="card" ref={sectionRef}>
         <div className="card__header">
-          <h2 className="card__title">Fretting Trainer</h2>
         </div>
         <p className="card__body">No drawable shapes in the catalog.</p>
       </section>
@@ -163,7 +162,6 @@ export function ShapeTrainerPanel({
   return (
     <section className="card" ref={sectionRef}>
       <div className="card__header">
-        <h2 className="card__title">Fretting Trainer</h2>
         <span className="pill">{shapes.length} shapes</span>
       </div>
 

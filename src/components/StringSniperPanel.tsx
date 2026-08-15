@@ -64,7 +64,6 @@ export function StringSniperPanel() {
   return (
     <section className="card">
       <div className="card__header">
-        <h2 className="card__title">String Sniper</h2>
         <span className="pill">beta</span>
       </div>
 

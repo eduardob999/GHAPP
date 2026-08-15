@@ -510,7 +510,6 @@ export function ChordHeroPanel({
     <section className="card" ref={sectionRef}>
       {phase === 'idle' || phase === 'finished' ? (
         <div className="card__header">
-          <h2 className="card__title">Chord Hero</h2>
           <span className="pill">{PROGRESSIONS.length} progressions</span>
         </div>
       ) : null}
