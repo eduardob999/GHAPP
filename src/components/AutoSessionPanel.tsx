@@ -20,9 +20,18 @@ import {
   type HeardChord,
 } from '../domain/earGrading';
 import {
+  EMPTY_EVIDENCE,
+  addFrame,
+  decisionProgress,
+  describeEvidence,
+  isDecided,
+  type EvidenceState,
+} from '../domain/activityProgress';
+import {
   PROGRESSION_BY_ID,
   chordAt,
   gradeFromSummary,
+  progressionDurationMs,
   scoreWindow,
   scoreRiffWindow,
   summarise,
@@ -61,15 +70,8 @@ interface AutoSessionPanelProps {
 
 type Phase = 'ready' | 'running' | 'paused' | 'finished';
 
-const TICK_MS = 250;
-
 /** How often the microphone is sampled into the activity's buffer. */
 const SAMPLE_MS = 100;
-
-function formatClock(seconds: number): string {
-  const whole = Math.max(0, Math.round(seconds));
-  return `${Math.floor(whole / 60)}:${`${whole % 60}`.padStart(2, '0')}`;
-}
 
 /** The eyebrow above the rail: where you are, in words. */
 function activityLabel(activity: Activity | null): string {
@@ -97,7 +99,7 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
 
   const [phase, setPhase] = useState<Phase>('ready');
   const [index, setIndex] = useState(0);
-  const [elapsed, setElapsed] = useState(0);
+  const [evidence, setEvidence] = useState<EvidenceState>(EMPTY_EVIDENCE);
   const [script, setScript] = useState<AutoSessionScript | null>(null);
   const [outcomes, setOutcomes] = useState<ActivityOutcome[]>([]);
   const [lastDetail, setLastDetail] = useState<string | null>(null);
@@ -137,6 +139,16 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
   const scriptRef = useRef<AutoSessionScript | null>(null);
   const indexRef = useRef(0);
   const outcomesRef = useRef<ActivityOutcome[]>([]);
+  /** Read inside the sampler, which must not close over a render's state. */
+  const evidenceRef = useRef<EvidenceState>(EMPTY_EVIDENCE);
+  /**
+   * The sampler calls this rather than `advance` directly.
+   *
+   * `advance` is rebuilt whenever the skill states change, and an interval that
+   * captured an old one would judge with a stale buffer — the same class of bug
+   * as the two stale closures already recorded in this project.
+   */
+  const advanceRef = useRef<() => void>(() => {});
 
   const chime = useRef<ChimePlayer | null>(null);
   useEffect(
@@ -192,11 +204,41 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
       if (activity.kind === 'shape' || activity.kind === 'tune') {
         frames.current.push(latestChord.current);
         if (latestNote.current) notes.current.push(latestNote.current);
+
+        // Evidence, not elapsed time, ends the activity. A tune-up has no
+        // target chord to match, so it waits for the player to move on.
+        const definition_ = definitionFor(activity.skillId);
+        const target = definition_ ? targetChordFor(definition_) : null;
+        if (!target) return;
+
+        const next = addFrame(evidenceRef.current, target, latestChord.current);
+        evidenceRef.current = next;
+        setEvidence(next);
+
+        if (isDecided(next)) advanceRef.current();
         return;
       }
 
       const progression = progressionOf(activity);
       if (!progression) return;
+
+      // A progression is bounded by the music itself: it ends when the last
+      // step has been played, which is a musical length rather than a session
+      // timer. Until the first sound arrives it does not start at all.
+      const heardYet = evidenceRef.current.heard > 0 || latestChord.current !== null;
+      if (!heardYet) {
+        activityStartedAt.current = performance.now();
+        return;
+      }
+      if (latestChord.current) {
+        evidenceRef.current = { ...evidenceRef.current, heard: evidenceRef.current.heard + 1 };
+      }
+
+      const elapsedMs = performance.now() - activityStartedAt.current;
+      if (elapsedMs > progressionDurationMs(progression, activity.tempoBpm ?? progression.tempoBpm)) {
+        advanceRef.current();
+        return;
+      }
 
       // Judge each frame against the step that was actually sounding.
       const step = chordAt(
@@ -254,7 +296,8 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
       setOutcomes([]);
       setLastDetail(null);
       setIndex(0);
-      setElapsed(0);
+      setEvidence(EMPTY_EVIDENCE);
+      evidenceRef.current = EMPTY_EVIDENCE;
       setPhase('running');
     },
     [states, streak, recentAccuracy, minutes, resetDetector, startListening],
@@ -343,7 +386,8 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
     const next = indexRef.current + 1;
     indexRef.current = next;
     setIndex(next);
-    setElapsed(0);
+    setEvidence(EMPTY_EVIDENCE);
+    evidenceRef.current = EMPTY_EVIDENCE;
     frames.current = [];
     notes.current = [];
     stepFrames.current = new Map();
@@ -374,24 +418,11 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
     }
   }, [judge, states, stopListening, user.uid]);
 
-  // The clock. One interval for the whole session rather than one per activity,
-  // so a slow render cannot leave two running at once.
   useEffect(() => {
-    if (phase !== 'running' || !activity) return;
+    advanceRef.current = advance;
+  }, [advance]);
 
-    const handle = window.setInterval(() => {
-      setElapsed((previous) => {
-        const next = previous + TICK_MS / 1000;
-        if (next >= activity.seconds) {
-          advance();
-          return 0;
-        }
-        return next;
-      });
-    }, TICK_MS);
 
-    return () => window.clearInterval(handle);
-  }, [phase, activity, advance]);
 
   const definition = definitionFor(activity?.skillId);
   const diagram = definition ? toDiagram(definition) : null;
@@ -468,10 +499,11 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
     );
   }
 
-  const segmentProgress = activity ? Math.min(1, elapsed / activity.seconds) : 0;
+  // How close the current activity is to a verdict. Not time — evidence.
+  const segmentProgress = decisionProgress(evidence);
 
   return (
-    <section className="card auto" data-testid="auto-session">
+    <section className="card auto auto--playing" data-testid="auto-session">
       {/* The rail: done, doing, still to come. */}
       <div className="rail" role="progressbar" aria-valuemin={0} aria-valuemax={progress.total}
         aria-valuenow={progress.done} aria-label="Session progress">
@@ -495,11 +527,10 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
       </p>
 
       <div className="rail__legend">
-        <span data-testid="auto-points-live">{scoreSession(outcomes).points} pts</span>
         <span data-testid="auto-step">
-          Step {index + 1} of {progress.total} · {activityLabel(activity)}
+          {index + 1}/{progress.total} · {activityLabel(activity)}
         </span>
-        <span>{formatClock(progress.secondsRemaining - elapsed)} left</span>
+        <span data-testid="auto-points-live">{scoreSession(outcomes).points} pts</span>
       </div>
 
       <div className="auto__stage">
@@ -523,15 +554,17 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
           />
         ) : null}
 
-        <p className="auto__coaching">{activity?.coaching}</p>
-
         {activity?.tempoBpm ? (
           <p className="auto__tempo" data-testid="auto-tempo">
             {activity.tempoBpm} BPM
           </p>
         ) : null}
 
-        {/* One line of live feedback, so the session is visibly listening. */}
+        {/*
+          What the microphone makes of it right now, and how close that is to a
+          verdict. This replaced a countdown: the thing worth watching is the
+          playing, not the clock.
+        */}
         <div
           className={`verdict ${currentChord || currentNote ? 'verdict--hit' : 'verdict--idle'}`}
           role="status"
@@ -546,6 +579,10 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
               ? `Hearing ${shortChordLabel(currentChord.root, currentChord.quality)}`
               : 'Listening…'}
         </div>
+
+        <p className="auto__coaching" data-testid="auto-evidence">
+          {describeEvidence(evidence)}
+        </p>
 
         {lastDetail ? (
           <p className="auto__lastdetail" data-testid="auto-last">
@@ -562,7 +599,11 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
         >
           {phase === 'running' ? 'Pause session' : 'Resume'}
         </button>
-        <button type="button" className="button button--ghost button--block" onClick={advance}>
+        <button
+          type="button"
+          className="button button--ghost button--block"
+          onClick={() => advanceRef.current()}
+        >
           Skip this one
         </button>
       </div>

@@ -1731,9 +1731,50 @@ code {
 
 /* Auto session ------------------------------------------------------------ */
 
+/*
+ * The session fits the screen it is played on.
+ *
+ * Someone holding a guitar cannot scroll, and a chord diagram that is half
+ * below the fold is no use at all. The stage takes whatever is left after the
+ * rail and the actions, and its contents shrink to fit rather than pushing the
+ * page taller.
+ */
 .auto {
   display: grid;
-  gap: 16px;
+  gap: 12px;
+}
+
+.auto--playing {
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  /* Topbar, the content's own padding, and the tab bar. Measured rather than
+     guessed: at 390×844 this leaves the card exactly on the fold. */
+  height: calc(100dvh - 246px);
+  min-height: 340px;
+}
+
+.auto--playing .auto__stage {
+  min-height: 0;
+  overflow: hidden;
+  align-content: center;
+  gap: 10px;
+  padding: 16px 14px;
+}
+
+.auto--playing .fretboard {
+  max-height: 34vh;
+  width: auto;
+}
+
+.auto--playing .auto__title {
+  font-size: clamp(1.6rem, 8vw, 2.6rem);
+}
+
+.auto--playing .auto__actions {
+  gap: 8px;
+}
+
+.auto--playing .button--block {
+  padding: 14px;
 }
 
 .auto__intro {
