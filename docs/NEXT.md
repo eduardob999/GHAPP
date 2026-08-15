@@ -40,10 +40,6 @@ always the next thing to do.
       a milestone outranks everything, and what just happened outranks the
       ambient state.
 
-## Next
-
-Drawn from what `docs/ROADMAP.md` still lists as missing.
-
 - [x] **8. No microphone, no dead ends.** Milestone 4 asks that everything from
       Milestone 3 keeps working when microphone access is denied. Today a denied
       permission leaves the audio panels showing an error and nothing else.
@@ -62,12 +58,42 @@ Drawn from what `docs/ROADMAP.md` still lists as missing.
       cool-down first. Found another cold-cache bug on the way — `onSnapshot`
       never delivers a first snapshot when the cache is empty and no server is
       reachable, so both subscriptions now read the cache explicitly first.
-- [ ] **10. Accessibility pass.** Milestone 6: keyboard-only practice, screen
+
+## Next
+
+Drawn from what `docs/ROADMAP.md` still lists as missing, plus the UI direction
+set on 2026-08-15: the app is six panels stacked on one scrolling page, and it
+should be a tree of menus with one automatic mode at the root.
+
+- [ ] **10. A tree, not a stack.** Six panels on one page is a debug harness,
+      not an app. A navigation tree with a back stack: Practise / Train /
+      Progress / Tools, each panel a leaf. No router dependency — a pure
+      `src/domain/navigation.ts` describing the tree, a shell component walking
+      it, and the location mirrored into `location.hash` so a reload and the
+      installed PWA both come back where you were.
+- [ ] **11. Auto session — the main mode.** What the app opens on: it starts
+      coaching immediately, with no configuration at all. A pure director
+      (`src/domain/autoSession.ts`) builds a script of activities from skill
+      state, the streak and the time of day, then advances through them on its
+      own — tune-up, warm-up shape, progression, riff, accuracy drill — in one
+      continuous flow with a shared progress rail, never navigation. Progressive:
+      tempo and difficulty follow the last few results, and harder material
+      unlocks only when accuracy holds. The existing panels stay reachable from
+      the tree for when you want to pick something specific.
+      Decisions taken with the user: land straight in the auto session; one
+      continuous coached flow rather than handing off to each panel.
+- [ ] **12. Design system.** Once 10 and 11 land, push the component previews to
+      a claude.ai/design design-system project through `DesignSync`, so the look
+      can be iterated visually and read back into `src/styles.css`. Deliberately
+      after the structure: syncing the current stacked layout would be designing
+      the thing we are replacing.
+
+- [ ] **13. Accessibility pass.** Milestone 6: keyboard-only practice, screen
       reader labels on every live region, visible focus, and a reduced-motion
       audit now that there is a character bobbing about.
-- [ ] **11. Service worker updates.** Milestone 6: prompt when a new version is
+- [ ] **14. Service worker updates.** Milestone 6: prompt when a new version is
       waiting instead of silently reloading.
-- [ ] **12. Left-handed.** Milestone 6: mirror the fretboard diagrams and the
+- [ ] **15. Left-handed.** Milestone 6: mirror the fretboard diagrams and the
       string order behind a profile setting.
 
 ## Ground rules
