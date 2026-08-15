@@ -105,8 +105,13 @@ should be a tree of menus with one automatic mode at the root.
       tuner announces in ten-cent buckets, not 25 times a second), and
       `animation: none` under reduced motion rather than a zeroed duration —
       which had left the companion frozen mid-bob.
-- [ ] **14. Service worker updates.** Milestone 6: prompt when a new version is
-      waiting instead of silently reloading.
+- [x] **14. Service worker updates.** The worker no longer calls `skipWaiting()`
+      on install, so a deploy waits rather than swapping the assets under
+      someone mid-session. `UpdateBar` sits at the app root — a new build is
+      worth offering before sign-in too — and "Later" means later. Two bugs
+      found while testing it against a real worker: the first visit reloaded
+      itself for nothing, and the fix for that then suppressed the genuine
+      update swap as well.
 - [x] **15. Left-handed.** `src/domain/handedness.ts` is one predicate and one
       coordinate flip; string and fret *numbers* deliberately do not change,
       since renumbering would make every skill id and every practice record mean

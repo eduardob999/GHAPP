@@ -41,10 +41,16 @@ self.addEventListener('install', (event) => {
         console.warn(`[sw] ${failed.length} shell asset(s) failed to precache.`, failed);
       }
 
-      // Take over immediately. Combined with the controllerchange reload in
-      // registerServiceWorker.ts, this means a deploy reaches users on their
-      // next launch instead of whenever they close every tab.
-      await self.skipWaiting();
+      // Deliberately *not* skipWaiting() here.
+      //
+      // Taking over immediately means a deploy can swap the assets under
+      // someone mid-practice, and the page reloads to match — losing the run
+      // they were part-way through. A new build now waits until the page asks,
+      // which it does when the user presses "Update" (see the SKIP_WAITING
+      // handler at the bottom of this file).
+      //
+      // On a *first* install there is no controller, so the worker activates
+      // straight away regardless. This only defers updates.
     })(),
   );
 });

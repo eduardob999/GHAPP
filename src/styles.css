@@ -1250,6 +1250,29 @@ code {
   white-space: nowrap;
 }
 
+.updatebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  max-width: 640px;
+  margin: 12px auto 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: var(--accent-wash);
+}
+
+.updatebar__text {
+  font-weight: 600;
+}
+
+.updatebar__actions {
+  display: flex;
+  gap: 8px;
+}
+
 .skiplink {
   position: absolute;
   left: 12px;

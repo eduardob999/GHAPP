@@ -2,10 +2,11 @@ import { AppMark } from './components/AppMark';
 import { AppShell } from './components/AppShell';
 import { SetupNotice } from './components/SetupNotice';
 import { SignInScreen } from './components/SignInScreen';
+import { UpdateBar } from './components/UpdateBar';
 import { isFirebaseConfigured } from './firebase';
 import { useAuthUser } from './hooks/useAuthUser';
 
-export function App() {
+function Screen() {
   const { user, loading } = useAuthUser();
 
   if (!isFirebaseConfigured) {
@@ -24,4 +25,13 @@ export function App() {
   }
 
   return user ? <AppShell user={user} /> : <SignInScreen />;
+}
+
+export function App() {
+  return (
+    <>
+      <UpdateBar />
+      <Screen />
+    </>
+  );
 }
