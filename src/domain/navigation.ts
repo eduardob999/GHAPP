@@ -16,6 +16,7 @@
 /** Every leaf screen. The shell maps these to components. */
 export type ScreenId =
   | 'auto'
+  | 'songs'
   | 'today'
   | 'chord-hero'
   | 'shapes'
@@ -60,6 +61,13 @@ export const NAV_ROOT: NavNode = {
           title: 'Auto session',
           blurb: 'Press play. It picks, coaches and moves you on.',
           screen: 'auto',
+          needsMicrophone: true,
+        },
+        {
+          id: 'practise.songs',
+          title: 'Songs',
+          blurb: 'Real songs, chords only. Scored like everything else.',
+          screen: 'songs',
           needsMicrophone: true,
         },
         {

@@ -742,6 +742,52 @@ export const SKILL_CATALOG: readonly MicroSkillDefinition[] = [
   },
 
 
+  {
+    id: 'fretting.open.a-major',
+    category: 'fretting_shape',
+    family: 'open_chord',
+    difficulty: 'beginner',
+    title: 'Open A major',
+    description: 'Three fingers side by side in the 2nd fret. Crowded — angle them so the 1st string still rings.',
+    suggestedDurationSeconds: 20,
+    active: true,
+    metadata: {
+      chordQuality: 'major',
+      rootString: 5,
+      rootFret: 0,
+      lowestFret: 0,
+      highestFret: 2,
+      mutedStrings: [6],
+      fingers: [
+        { string: 4, fret: 2, finger: 1 },
+        { string: 3, fret: 2, finger: 2 },
+        { string: 2, fret: 2, finger: 3 },
+      ],
+    },
+  },
+  {
+    id: 'fretting.open.d-minor',
+    category: 'fretting_shape',
+    family: 'open_chord',
+    difficulty: 'beginner',
+    title: 'Open D minor',
+    description: 'The saddest of the easy chords. Top three strings only — keep the bass strings quiet.',
+    suggestedDurationSeconds: 20,
+    active: true,
+    metadata: {
+      chordQuality: 'minor',
+      rootString: 4,
+      rootFret: 0,
+      lowestFret: 0,
+      highestFret: 3,
+      mutedStrings: [6, 5],
+      fingers: [
+        { string: 3, fret: 2, finger: 2 },
+        { string: 2, fret: 3, finger: 3 },
+        { string: 1, fret: 1, finger: 1 },
+      ],
+    },
+  },
   // ── Fretting: the sevenths and the rest of the open chords ────────────────
   //
   // Added so that every chord Chord Hero asks for has somewhere it was taught

@@ -93,9 +93,13 @@ and decides for you.
       to play, everything else behind "Browse everything". Tempo now defaults to
       half the written speed with the ramp on, so slow is where you start rather
       than where you stay.
-- [ ] **20. Songs.** Easy pop songs as playable progressions — chord charts
+- [x] **20. Songs.** Easy pop songs as playable progressions — chord charts
       only, no lyrics or melodies — scored like everything else, with a Songs
       section that says which ones you can already play.
+      Done: fifteen songs, chords only, gated by the same curriculum. A locked
+      song names the chord in the way and links to the lesson. Found two more
+      content gaps: open A major and open D minor were missing entirely, so the
+      app would have taught them as barres.
 - [ ] **21. One game, not five tools.** A single scored flow: every activity
       hands to the next inside the auto session with no navigation, one running
       score, and the companion reacting to what just happened. The separate

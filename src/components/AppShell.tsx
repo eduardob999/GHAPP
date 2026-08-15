@@ -19,6 +19,7 @@ import { ChordHeroPanel } from './ChordHeroPanel';
 import { CompanionCard } from './CompanionCard';
 import { PracticePanel } from './PracticePanel';
 import { ShapeTrainerPanel } from './ShapeTrainerPanel';
+import { SongsPanel } from './SongsPanel';
 import { StringSniperPanel } from './StringSniperPanel';
 import { TunerPanel } from './TunerPanel';
 
@@ -149,6 +150,10 @@ export function AppShell({ user }: AppShellProps) {
         return <CompanionCard user={user} />;
       case 'account':
         return <AccountPanel user={user} />;
+      case 'songs':
+        return (
+          <SongsPanel user={user} onPlay={openInChordHero} onLearnShape={openInTrainer} />
+        );
       case 'auto':
         return <AutoSessionPanel user={user} />;
     }

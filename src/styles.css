@@ -1361,6 +1361,64 @@ code {
   cursor: pointer;
 }
 
+/* Songs: what you can play, and what is one chord away. */
+.songlist {
+  list-style: none;
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+}
+
+.songlist__item {
+  display: grid;
+  gap: 8px;
+  padding: 16px 18px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+}
+
+.songlist__item--locked {
+  opacity: 0.72;
+}
+
+.songlist__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.songlist__title {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.songlist__artist {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.songlist__chords {
+  margin: 0;
+  color: var(--accent-soft);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.songlist__locked {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.songlist__missing {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
 .skiplink {
   position: absolute;
   left: 12px;

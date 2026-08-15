@@ -1,4 +1,5 @@
 import { chordPitchClassMask, type ChordQuality } from '../audio/chordDetection';
+import { SONG_PROGRESSIONS } from './songs';
 import {
   DEFAULT_TUNING,
   TUNINGS,
@@ -98,6 +99,7 @@ export const GENRES = [
   'Fingerstyle',
   'Riffs',
   'Sevenths',
+  'Songs',
   'Tunings',
   'Workouts',
 ] as const;
@@ -768,6 +770,7 @@ const STRING_SET_RIFFS: readonly ChordProgression[] = [
  * genre, so the ordering here only decides what comes first inside a genre.
  */
 export const PROGRESSIONS: readonly ChordProgression[] = [
+  ...SONG_PROGRESSIONS,
   ...CORE_PROGRESSIONS,
   ...SEVENTH_KEY_PROGRESSIONS,
   DOMINANT_CYCLE,
