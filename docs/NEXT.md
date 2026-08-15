@@ -65,7 +65,7 @@ Set as top priority on 2026-08-15. The app is a set of separate tools that
 happen to share a shell; it should be one game that listens, scores everything,
 and decides for you.
 
-- [ ] **16. FSRS, adapting.** Replace the SM-2-ish ease/interval with FSRS —
+- [x] **16. FSRS, adapting.** Replace the SM-2-ish ease/interval with FSRS —
       difficulty, stability and retrievability per skill, with the parameters
       adapting to this player's own review history rather than staying at the
       published defaults. Pure `src/domain/fsrs.ts`, and `scheduleNext` becomes
