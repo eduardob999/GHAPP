@@ -21,6 +21,15 @@ import {
 } from '../domain/skills';
 import { FretboardDiagram } from './FretboardDiagram';
 import { useHandedness } from '../hooks/useHandedness';
+import { useChordDetector } from '../hooks/useChordDetector';
+import {
+  describeEarResult,
+  gradeByEar,
+  targetChordFor,
+  type EarResult,
+  type HeardChord,
+} from '../domain/earGrading';
+import { MicNotice } from './MicNotice';
 
 /**
  * Fretting-hand trainer: one shape, one short timed rep, one honest grade.
@@ -68,8 +77,23 @@ export function ShapeTrainerPanel({
   const [deadline, setDeadline] = useState<number | null>(null);
   const [remaining, setRemaining] = useState<number>(DEFAULT_REP_SECONDS);
   const [lastGrade, setLastGrade] = useState<PracticeResult | null>(null);
+  const [earResult, setEarResult] = useState<EarResult | null>(null);
+  /** Only true when the microphone refused; manual grading is the fallback. */
+  const [selfGrading, setSelfGrading] = useState(false);
+
+  const {
+    currentChord,
+    error: micError,
+    errorCode,
+    isStarting,
+    start: startListening,
+    stop: stopListening,
+    reset: resetDetector,
+  } = useChordDetector();
 
   const sectionRef = useRef<HTMLElement | null>(null);
+  /** Every frame heard during the rep, graded in one go when it ends. */
+  const framesRef = useRef<HeardChord[]>([]);
 
   const selected: FrettingSkillDefinition | undefined =
     shapes.find((shape) => shape.id === selectedId) ?? shapes[0];
@@ -96,6 +120,40 @@ export function ShapeTrainerPanel({
     onRequestHandled();
   }, [requestedSkillId, shapes, selectShape, onRequestHandled, repSeconds]);
 
+  // Sample what the detector is hearing for the length of the rep. One frame
+  // per detector update, graded together at the end — a single frame is far too
+  // noisy to grade on, and a chord takes time to settle after the strum.
+  useEffect(() => {
+    if (phase !== 'running' || selfGrading) return;
+    framesRef.current.push(
+      currentChord ? { root: currentChord.root, quality: currentChord.quality } : null,
+    );
+  }, [currentChord, phase, selfGrading]);
+
+  /**
+   * The rep is over: the microphone has the verdict, so nobody is asked for one.
+   *
+   * A rep nobody heard files nothing at all — see `gradeByEar`. It is not a
+   * failure to play the chord, and filing it as one would teach the scheduler
+   * about an event that never happened.
+   */
+  useEffect(() => {
+    if (phase !== 'grading' || selfGrading || !selected) return;
+
+    const target = targetChordFor(selected);
+    if (!target) return;
+
+    const result = gradeByEar(target, framesRef.current);
+    setEarResult(result);
+
+    if (result.grade) grade(result.grade);
+    else {
+      stopListening();
+      setDeadline(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, selfGrading, selected]);
+
   /**
    * Countdown driven by a wall-clock deadline rather than by counting ticks:
    * background tabs throttle timers, and a tick-counting timer would silently
@@ -108,6 +166,7 @@ export function ShapeTrainerPanel({
       const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
       setRemaining(left);
       if (left === 0) setPhase('grading');
+
     };
 
     tick();
@@ -115,16 +174,33 @@ export function ShapeTrainerPanel({
     return () => window.clearInterval(handle);
   }, [phase, deadline]);
 
-  function startRep() {
-    setLastGrade(null);
-    setRemaining(repSeconds);
-    setDeadline(Date.now() + repSeconds * 1000);
-    setPhase('running');
-  }
+  const startRep = useCallback(
+    async (mode: 'listen' | 'self' = 'listen') => {
+      setLastGrade(null);
+      setEarResult(null);
+      framesRef.current = [];
+      resetDetector();
+
+      // Never start a listening rep on a microphone that did not open: the rep
+      // would hear nothing and the panel would have to invent a verdict.
+      if (mode === 'listen' && !(await startListening())) {
+        setSelfGrading(false);
+        setPhase('idle');
+        return;
+      }
+
+      setSelfGrading(mode === 'self');
+      setRemaining(repSeconds);
+      setDeadline(Date.now() + repSeconds * 1000);
+      setPhase('running');
+    },
+    [repSeconds, resetDetector, startListening],
+  );
 
   function grade(result: PracticeResult) {
     if (!selected) return;
 
+    stopListening();
     setLastGrade(result);
     setPhase('graded');
     setDeadline(null);
@@ -141,6 +217,8 @@ export function ShapeTrainerPanel({
       console.error('[trainer] Grade did not reach the server.', writeError);
     });
   }
+
+  useEffect(() => stopListening, [stopListening]);
 
   function goToNextShape() {
     const next = nextShape(shapes, states, new Date(), selected?.id);
@@ -217,6 +295,16 @@ export function ShapeTrainerPanel({
 
       <p className="task__description">{selected.description}</p>
 
+      {errorCode && phase === 'idle' ? (
+        <MicNotice
+          code={errorCode}
+          detail={micError}
+          onRetry={() => void startRep('listen')}
+          onContinueWithout={() => void startRep('self')}
+          continueLabel="Grade it yourself"
+        />
+      ) : null}
+
       {phase === 'idle' ? (
         <>
           <div className="field">
@@ -245,8 +333,13 @@ export function ShapeTrainerPanel({
           </p>
 
           <div className="task__grades">
-            <button type="button" className="button button--primary" onClick={startRep}>
-              Start {repSeconds}s rep
+            <button
+              type="button"
+              className="button button--primary"
+              onClick={() => void startRep('listen')}
+              disabled={isStarting}
+            >
+              {isStarting ? 'Waiting for microphone…' : `Start ${repSeconds}s rep`}
             </button>
             <button type="button" className="button button--ghost" onClick={goToNextShape}>
               Next shape
@@ -261,6 +354,18 @@ export function ShapeTrainerPanel({
             <span className="countdown__value">{remaining}</span>
             <span className="countdown__unit">seconds left</span>
           </div>
+
+          {selfGrading ? null : (
+            <div
+              className={`verdict ${currentChord ? 'verdict--hit' : 'verdict--idle'}`}
+              role="status"
+              data-testid="trainer-hearing"
+            >
+              {currentChord
+                ? `Hearing ${currentChord.root}${currentChord.quality === 'maj' ? '' : currentChord.quality === 'min' ? 'm' : currentChord.quality}`
+                : 'Listening…'}
+            </div>
+          )}
           <button
             type="button"
             className="button button--ghost"
@@ -273,7 +378,23 @@ export function ShapeTrainerPanel({
 
       {phase === 'grading' ? (
         <>
-          <p className="notice notice--ok">Rep done. How did that shape feel?</p>
+          {/*
+            Only reachable two ways now: the microphone heard nothing, or the
+            player chose to grade themselves because it was unavailable. A rep
+            that *was* heard is already filed by the time this renders.
+          */}
+          {earResult && selected ? (
+            <p className="notice notice--muted" data-testid="ear-verdict">
+              {describeEarResult(targetChordFor(selected)!, earResult)}
+            </p>
+          ) : null}
+
+          <p className="card__hint">
+            {selfGrading
+              ? 'No microphone, so this one is yours to call.'
+              : 'Nothing heard — grade it yourself, or play it again.'}
+          </p>
+
           <div className="task__grades">
             {RESULTS.map((option) => (
               <button
@@ -286,20 +407,34 @@ export function ShapeTrainerPanel({
               </button>
             ))}
           </div>
+
+          <button
+            type="button"
+            className="button button--ghost"
+            onClick={() => void startRep(selfGrading ? 'self' : 'listen')}
+          >
+            Play it again
+          </button>
         </>
       ) : null}
 
       {phase === 'graded' ? (
         <>
-          <p className="notice notice--ok">
-            Marked <strong>{lastGrade}</strong>
-            {nextDue !== undefined ? ` — back in ${describeInterval(nextDue)}.` : ' — saved.'}
+          <p className="notice notice--ok" data-testid="trainer-result">
+            {earResult && selected && !selfGrading
+              ? describeEarResult(targetChordFor(selected)!, earResult)
+              : `Marked ${lastGrade}.`}
+            {nextDue !== undefined ? ` Back in ${describeInterval(nextDue)}.` : ' Saved.'}
           </p>
           <div className="task__grades">
             <button type="button" className="button button--primary" onClick={goToNextShape}>
               Next shape
             </button>
-            <button type="button" className="button button--ghost" onClick={startRep}>
+            <button
+              type="button"
+              className="button button--ghost"
+              onClick={() => void startRep(selfGrading ? 'self' : 'listen')}
+            >
               Repeat this one
             </button>
           </div>
