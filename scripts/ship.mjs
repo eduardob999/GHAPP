@@ -141,11 +141,19 @@ const runId = sh(
 if (!runId) die('No workflow run found.');
 
 console.log(`  Run ${runId}: https://github.com/eduardob999/GHAPP/actions/runs/${runId}`);
-run('gh', ['run', 'watch', runId, '--exit-status', '--compact']);
+run('gh', ['run', 'watch', runId, '--exit-status']);
 
-const conclusion = sh(`gh run view ${runId} --json conclusion --jq .conclusion`);
+// `gh run watch` can return before the conclusion is recorded — and it exits
+// straight away when the run is already finished — so the conclusion is polled
+// rather than assumed from the watch exiting.
+let conclusion = '';
+for (let attempt = 0; attempt < 40 && !conclusion; attempt += 1) {
+  conclusion = sh(`gh run view ${runId} --json conclusion --jq .conclusion`);
+  if (!conclusion) await sleep(10_000);
+}
+
 if (conclusion !== 'success') {
-  die(`The workflow concluded "${conclusion}". See the run above.`);
+  die(`The workflow concluded "${conclusion || 'nothing yet'}". See the run above.`);
 }
 ok('Workflow green.');
 
