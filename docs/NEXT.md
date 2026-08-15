@@ -54,10 +54,14 @@ Drawn from what `docs/ROADMAP.md` still lists as missing.
       that files through the same scheduler and log (`graded: 'self'`). Found a
       real bug doing it — the run used to start regardless of whether the
       microphone opened, so a denied permission was filed as a `fail`.
-- [ ] **9. Session flow.** Milestone 3's last unbuilt piece: warm-up, rotation,
+- [x] **9. Session flow.** Milestone 3's last unbuilt piece: warm-up, rotation,
       cool-down, and an end-of-session summary that files one record to
       `/users/{uid}/sessions` (`kind: 'today'`) rather than only per-skill
       grades. Today's Session is a flat list with no shape to it.
+      Done: `planStructuredSession` picks the bookends by comfort, the
+      cool-down first. Found another cold-cache bug on the way — `onSnapshot`
+      never delivers a first snapshot when the cache is empty and no server is
+      reachable, so both subscriptions now read the cache explicitly first.
 - [ ] **10. Accessibility pass.** Milestone 6: keyboard-only practice, screen
       reader labels on every live region, visible focus, and a reduced-motion
       audit now that there is a character bobbing about.
