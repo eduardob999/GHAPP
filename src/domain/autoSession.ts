@@ -1,6 +1,7 @@
 import { PROGRESSIONS, progressionIdFromSkillId, type ChordProgression } from './progressions';
 import { planStructuredSession, type StructuredItem } from './sessionPlanner';
-import { hasDiagram } from './shapeTrainer';
+import { hasDiagram, toDiagram } from './shapeTrainer';
+import { isUnlocked, lockStateOf } from './curriculum';
 import { fullCatalog } from './sessionPlanner';
 import { SKILL_CATALOG, type MicroSkillDefinition, type SkillPracticeState } from './skills';
 import type { StreakSummary } from './streaks';
@@ -146,10 +147,39 @@ function progressionFor(
   );
 }
 
+/**
+ * Turns a locked progression into the lesson that unlocks it.
+ *
+ * This is where "teach before test" earns its place. The session does not skip
+ * music the player has not met the chords for — it teaches the first missing
+ * shape instead, and the progression comes back on its own once the chord has
+ * been heard. Being told "learn Am first" and then having to go and find Am is
+ * a chore; being handed Am is a lesson.
+ */
+function lessonFor(
+  progression: ChordProgression,
+  states: ReadonlyMap<string, SkillPracticeState>,
+): Activity | null {
+  const lock = lockStateOf(progression, states);
+  const shape = lock.nextShape;
+  if (lock.unlocked || !shape || !toDiagram(shape)) return null;
+
+  return {
+    id: `act.lesson.${shape.id}`,
+    kind: 'shape',
+    title: shape.title,
+    coaching: `New chord — you need it for ${progression.title}. ${shape.description}`,
+    seconds: Math.min(shape.suggestedDurationSeconds ?? 30, 45),
+    skillId: shape.id,
+    shapeSkillId: shape.id,
+  };
+}
+
 function activityFor(
   item: StructuredItem,
   level: 'beginner' | 'intermediate' | 'advanced',
   tempoScale: number,
+  states: ReadonlyMap<string, SkillPracticeState>,
 ): Activity | null {
   const { definition } = item;
   const seconds = definition.suggestedDurationSeconds ?? 40;
@@ -160,6 +190,11 @@ function activityFor(
     : null;
 
   if (progression) {
+    // Locked: teach the chord rather than scoring someone on a chord they have
+    // never been shown.
+    const lesson = lessonFor(progression, states);
+    if (lesson) return lesson;
+
     const isRiff = progression.chords.every((chord) => chord.mode === 'riff');
     return {
       id: `act.${definition.id}`,
@@ -260,6 +295,8 @@ export function buildAutoSession(input: AutoSessionInput): AutoSessionScript {
   // Plan roughly as many items as the budget can hold rather than a fixed
   // eight: the time available has to reach the *planner*, or a two-minute
   // sitting plans a ten-minute session and then throws most of it away.
+  const stateById = new Map(states.map((state) => [state.skillId, state]));
+
   const planned = planStructuredSession(fullCatalog(SKILL_CATALOG), states, now, {
     maxItems: Math.max(3, Math.round(budgetSeconds / 45)),
   });
@@ -284,7 +321,7 @@ export function buildAutoSession(input: AutoSessionInput): AutoSessionScript {
   for (const item of planned.all) {
     if (used >= budgetSeconds) break;
 
-    const activity = activityFor(item, level, tempoScale);
+    const activity = activityFor(item, level, tempoScale, stateById);
     if (!activity) continue;
     if (!canListen && NEEDS_EAR.has(activity.kind)) continue;
 
@@ -299,7 +336,11 @@ export function buildAutoSession(input: AutoSessionInput): AutoSessionScript {
   // progression is added if none was scheduled.
   if (canListen && !body.some((activity) => activity.kind === 'progression')) {
     const fallback = PROGRESSIONS.find(
-      (p) => !p.tuning && p.genre === 'Essentials' && p.level === 'beginner',
+      (p) =>
+        !p.tuning &&
+        p.genre === 'Essentials' &&
+        p.level === 'beginner' &&
+        isUnlocked(p, stateById),
     );
 
     if (fallback) {

@@ -124,6 +124,7 @@ export function AppShell({ user }: AppShellProps) {
             user={user}
             requestedProgressionId={heroProgressionId}
             onRequestHandled={() => setHeroProgressionId(null)}
+            onLearnShape={openInTrainer}
           />
         );
       case 'shapes':

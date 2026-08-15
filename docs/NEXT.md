@@ -78,10 +78,14 @@ and decides for you.
       Done: the trainer hears its chord, the sniper scores sets of eight and
       files them, and Today's Session routes every card the microphone can
       judge — 10 of 10 on a fresh account — into the mode that listens.
-- [ ] **18. Teach before test.** A chord may not appear in Chord Hero, a song or
+- [x] **18. Teach before test.** A chord may not appear in Chord Hero, a song or
       the auto session until its shape has been taught in the fretting trainer
       and heard cleanly at least once. Needs a chord → shape map and a gate over
       the content the director may pick from.
+      Done: `src/domain/curriculum.ts`, plus thirteen new teaching shapes — the
+      catalog taught 14 chords and the library used 63, so gating without them
+      would have locked most of the app. All 12 beginner progressions are now
+      teachable end to end.
 - [x] **19. Chord Hero, no setup.** Slowest tempo is the default, everything
       else is remembered or decided. Picking a progression should be one tap
       from a short list, not four segmented controls.

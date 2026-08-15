@@ -45,6 +45,7 @@ const QUALITY_FROM_CATALOG: Record<string, ChordQuality> = {
   major: 'maj',
   minor: 'min',
   power: '5',
+  dominant: '7',
   dominant7: '7',
   major7: 'maj7',
   minor7: 'min7',

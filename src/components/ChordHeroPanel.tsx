@@ -30,6 +30,7 @@ import {
   type ProgressionLevel,
 } from '../domain/progressions';
 import { SKILL_BY_ID } from '../domain/skills';
+import { describeMissing, isUnlocked, lockStateOf } from '../domain/curriculum';
 import { MicNotice } from './MicNotice';
 import { useSkillStates } from '../hooks/useSkillStates';
 import { useRecentSessions } from '../hooks/useRecentSessions';
@@ -108,6 +109,8 @@ export interface ChordHeroPanelProps {
   onRequestHandled?: () => void;
   /** Reports whether the microphone is currently open, so the companion can listen. */
   onListeningChange?: (listening: boolean) => void;
+  /** Sends the player to the trainer to meet a chord this progression needs. */
+  onLearnShape?: (skillId: string) => void;
 }
 
 export function ChordHeroPanel({
@@ -115,6 +118,7 @@ export function ChordHeroPanel({
   requestedProgressionId = null,
   onRequestHandled,
   onListeningChange,
+  onLearnShape,
 }: ChordHeroPanelProps) {
   const {
     currentChord,
@@ -201,7 +205,9 @@ export function ChordHeroPanel({
    */
   const suggestions = useMemo(() => {
     const now = Date.now();
-    const scored = PROGRESSIONS.filter((p) => !p.tuning).map((p) => {
+    // Teach before test: nothing reaches the shortlist until every chord in it
+    // has been met in the trainer.
+    const scored = PROGRESSIONS.filter((p) => !p.tuning && isUnlocked(p, stateById)).map((p) => {
       const state = stateById.get(progressionSkillId(p.id));
       const due = state?.dueAt?.toDate().getTime();
       const levelRank = p.level === 'beginner' ? 0 : p.level === 'intermediate' ? 1 : 2;
@@ -656,12 +662,15 @@ export function ChordHeroPanel({
               value={progression.id}
               onChange={(event) => setProgressionId(event.target.value)}
             >
-              {visible.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {stateById.has(progressionSkillId(p.id)) ? '✓ ' : ''}
-                  {p.title} · {p.level}
-                </option>
-              ))}
+              {visible.map((p) => {
+                const lock = lockStateOf(p, stateById);
+                return (
+                  <option key={p.id} value={p.id}>
+                    {lock.unlocked ? (stateById.has(progressionSkillId(p.id)) ? '✓ ' : '') : '🔒 '}
+                    {p.title} · {p.level}
+                  </option>
+                );
+              })}
             </select>
           </label>
 
@@ -671,6 +680,28 @@ export function ChordHeroPanel({
               tuner on the Dashboard will get you there.
             </p>
           ) : null}
+
+          {(() => {
+            const lock = lockStateOf(progression, stateById);
+            if (lock.unlocked) return null;
+
+            return (
+              <p className="notice notice--warn" data-testid="locked-notice">
+                <strong>{describeMissing(lock.missing)}</strong>{' '}
+                {lock.missing.length === 1 ? 'is' : 'are'} new. The trainer will show you the
+                shape first — nothing here is scored before you have met it.
+                {lock.nextShape && onLearnShape ? (
+                  <button
+                    type="button"
+                    className="task__link"
+                    onClick={() => onLearnShape(lock.nextShape!.id)}
+                  >
+                    Learn {lock.nextShape.title} →
+                  </button>
+                ) : null}
+              </p>
+            );
+          })()}
 
           {progression.description ? <p className="card__hint">{progression.description}</p> : null}
           {progression.teaches ? (
@@ -794,9 +825,13 @@ export function ChordHeroPanel({
               type="button"
               className="button button--primary"
               onClick={() => void handleStart('listen')}
-              disabled={isStarting}
+              disabled={isStarting || !isUnlocked(progression, stateById)}
             >
-              {isStarting ? 'Waiting for microphone…' : 'Play'}
+              {isStarting
+                ? 'Waiting for microphone…'
+                : isUnlocked(progression, stateById)
+                  ? 'Play'
+                  : 'Locked until you have met the chords'}
             </button>
             <button
               type="button"
