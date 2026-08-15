@@ -508,10 +508,12 @@ export function ChordHeroPanel({
 
   return (
     <section className="card" ref={sectionRef}>
-      <div className="card__header">
-        <h2 className="card__title">Chord Hero</h2>
-        <span className="pill">{PROGRESSIONS.length} progressions</span>
-      </div>
+      {phase === 'idle' || phase === 'finished' ? (
+        <div className="card__header">
+          <h2 className="card__title">Chord Hero</h2>
+          <span className="pill">{PROGRESSIONS.length} progressions</span>
+        </div>
+      ) : null}
 
       {errorCode && phase === 'idle' ? (
         <MicNotice
@@ -744,29 +746,41 @@ export function ChordHeroPanel({
 
       {phase === 'playing' && active ? (
         <>
-          <div className="hero">
-            <div className="hero__now">
-              <span className="hero__label">Now</span>
-              <span className="hero__chord">{stepLabel(active.chord)}</span>
-              <span className="hero__mode">
-                {active.chord.shapeLabel
-                  ? `${active.chord.shapeLabel} · ${PLAY_MODE_HINTS[active.chord.mode]}`
-                  : PLAY_MODE_HINTS[active.chord.mode]}
-              </span>
-            </div>
-            <div className="hero__next">
-              <span className="hero__label">Streak</span>
-              <span className="hero__chord hero__chord--next">{streak}</span>
-            </div>
+          <div className="playhead">
+            <span className="playhead__where">
+              Step {active.index + 1} of {progression.chords.length}
+            </span>
+            <span className="playhead__streak" data-testid="streak-pill">
+              <strong>{streak}</strong> streak
+            </span>
           </div>
 
+          <p className="auto__eyebrow playhead__label">Now</p>
+
+          <div className="nowcard">
+            <span className="nowcard__chord">{stepLabel(active.chord)}</span>
+            <span className="nowcard__hint">
+              {active.chord.shapeLabel
+                ? `${active.chord.shapeLabel} · ${PLAY_MODE_HINTS[active.chord.mode]}`
+                : PLAY_MODE_HINTS[active.chord.mode]}
+            </span>
+          </div>
+
+          <p className="auto__eyebrow playhead__label">Coming up</p>
+
           <div className="lane">
-            {lane.map((step) => (
-              <span key={step.id} className="lane__item">
-                {stepLabel(step)}
+            {lane.map((step, position) => (
+              <span
+                key={step.id}
+                className={`lane__card${position === 0 ? ' lane__card--next' : ''}`}
+              >
+                <span className="lane__chord">{stepLabel(step)}</span>
+                <span className="lane__when">
+                  {position === 0 ? 'next' : `in ${position + 1}`}
+                </span>
               </span>
             ))}
-            {lane.length === 0 ? <span className="lane__item">last one</span> : null}
+            {lane.length === 0 ? <span className="lane__card">last one</span> : null}
           </div>
 
           <div

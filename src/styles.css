@@ -548,30 +548,6 @@ code {
   transition: width 0.09s linear;
 }
 
-.lane {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-  overflow-x: auto;
-}
-
-.lane__item {
-  flex: none;
-  padding: 6px 12px;
-  border-radius: 999px;
-  border: 1px dashed var(--border);
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.lane__item:first-child {
-  border-style: solid;
-  color: var(--text);
-}
-
 .history {
   list-style: none;
   margin: 12px 0 16px;
@@ -1613,6 +1589,267 @@ code {
   padding: 18px;
   font-size: 1rem;
   border-radius: var(--radius);
+}
+
+/* Progress: companion tile, streak, badges -------------------------------- */
+
+.companion-card {
+  position: relative;
+}
+
+.companion-card__body {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 0;
+}
+
+.companion-card__tile {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 96px;
+  height: 96px;
+  border-radius: 22px;
+  background: var(--bg-inset);
+}
+
+.companion-card__mood {
+  margin: 0 0 6px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.companion-card__line {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.companion-card__sound {
+  margin-top: 16px;
+}
+
+.streak {
+  display: grid;
+  gap: 14px;
+}
+
+.streak__top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.streak__count {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin: 0;
+}
+
+.streak__number {
+  color: var(--accent);
+  font-size: 4rem;
+  font-weight: 700;
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.streak__unit {
+  color: var(--text-muted);
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.streak__best,
+.streak__legend {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.streak__legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.streak__ratio {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A thicker bar than the beat meter: this one is the point of the screen. */
+.meter {
+  position: relative;
+  height: 14px;
+  border-radius: 8px;
+  background: var(--bg-inset);
+  overflow: hidden;
+}
+
+.meter__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 8px;
+  background: var(--accent);
+}
+
+.badgegrid {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px 12px;
+  margin: 14px 0;
+  padding: 0;
+}
+
+.badgegrid__item {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.badgegrid__disc {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: 2px dashed color-mix(in srgb, var(--text-muted) 45%, transparent);
+  color: var(--bg);
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.badgegrid__item--won .badgegrid__disc {
+  border: 0;
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.badgegrid__name {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.badgegrid__item--won .badgegrid__name {
+  color: var(--text);
+}
+
+/* Chord Hero, playing ----------------------------------------------------- */
+
+.playhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.playhead__where {
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.playhead__streak {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-wash);
+  color: var(--accent-soft);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.playhead__streak strong {
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.playhead__label {
+  margin: 0 0 8px;
+  text-align: center;
+}
+
+/* The chord you are on: the largest thing on the screen, by a distance. */
+.nowcard {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 30px 20px 26px;
+  margin-bottom: 20px;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--bg-elevated));
+}
+
+.nowcard__chord {
+  font-size: clamp(3.5rem, 22vw, 5.5rem);
+  font-weight: 700;
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.nowcard__hint {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  text-align: center;
+}
+
+.lane {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.lane__card {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 16px 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  color: var(--text-muted);
+}
+
+.lane__card--next {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.lane__chord {
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.lane__when {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 @keyframes pulse {

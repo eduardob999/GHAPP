@@ -92,10 +92,12 @@ should be a tree of menus with one automatic mode at the root.
       library, so the palette and component anatomy were extracted and rebuilt.
       **Still open:** a two-way sync would need a design-system project, which
       has to be created as one — the type is immutable.
-- [ ] **12b. Screens still to match the mockups.** Chord Hero playing (1c) and
-      Progress (1d) have designs that have not been applied: the lane of coming
-      chords, the beat pips, the verdict strip, the streak card and the badge
-      grid.
+- [x] **12b. Screens still to match the mockups.** Chord Hero playing (1c) and
+      Progress (1d) applied: the now-card, the lane of coming chords with "next
+      / in 2 / in 3", the streak pill, and on Progress the companion tile, the
+      streak as a number, and every badge as a slot — earned or dashed, because
+      an empty slot is the reason to come back. Progress was promoted from a
+      one-item menu to a screen of its own.
 
 - [ ] **13. Accessibility pass.** Milestone 6: keyboard-only practice, screen
       reader labels on every live region, visible focus, and a reduced-motion

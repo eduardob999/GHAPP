@@ -98,17 +98,12 @@ export const NAV_ROOT: NavNode = {
       ],
     },
     {
+      // A section with one child is a menu that exists to be tapped through, so
+      // this one is the screen itself. The tab goes straight there.
       id: 'progress',
       title: 'Progress',
       blurb: 'Streaks, milestones and what you have played.',
-      children: [
-        {
-          id: 'progress.companion',
-          title: 'Your companion',
-          blurb: 'Streak, milestones and how it thinks you are doing.',
-          screen: 'companion',
-        },
-      ],
+      screen: 'companion',
     },
     {
       id: 'tools',

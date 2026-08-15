@@ -3,6 +3,7 @@ import type { User } from 'firebase/auth';
 import { createChimePlayer, type ChimePlayer } from '../audio/chime';
 import { companionLine, companionMood, streakLabel } from '../domain/companion';
 import {
+  STREAK_MILESTONES,
   earnedMilestones,
   milestoneProgress,
   nextMilestone,
@@ -90,16 +91,35 @@ export function CompanionCard({ user, listening = false, defaultSound = true }: 
   const earned = earnedMilestones(streak.longest);
 
   return (
-    <section className="card companion-card">
-      <div className="card__header">
-        <h2 className="card__title">Your companion</h2>
+    <>
+      {error ? (
+        <p className="notice notice--muted">
+          Could not read your practice history: {error}. Everything else still works.
+        </p>
+      ) : null}
+
+      {/* The companion, with its mood as the eyebrow and its line as the point. */}
+      <section className="card companion-card">
+        <div className="companion-card__body">
+          <div className="companion-card__tile">
+            <Companion mood={mood} size={78} />
+          </div>
+          <div className="companion-card__text">
+            <p className="companion-card__mood">
+              {streak.practisedToday ? 'Today' : 'So far'} · {mood.replace('-', ' ')}
+            </p>
+            <p className="companion-card__line" data-testid="companion-line">
+              {line}
+            </p>
+          </div>
+        </div>
         <button
           type="button"
-          className="button button--ghost button--small"
+          className="button button--ghost button--small companion-card__sound"
           onClick={() => {
-            const next = !soundOn;
-            setSoundOn(next);
-            if (next) {
+            const wanted = !soundOn;
+            setSoundOn(wanted);
+            if (wanted) {
               chime.current ??= createChimePlayer();
               chime.current.play('gentle');
             }
@@ -108,32 +128,7 @@ export function CompanionCard({ user, listening = false, defaultSound = true }: 
         >
           {soundOn ? 'Sound on' : 'Sound off'}
         </button>
-      </div>
-
-      {error ? (
-        <p className="notice notice--muted">
-          Could not read your practice history: {error}. Everything else still works.
-        </p>
-      ) : null}
-
-      <div className="companion-card__body">
-        <Companion mood={mood} />
-        <div className="companion-card__text">
-          <p className="companion-card__line" data-testid="companion-line">
-            {line}
-          </p>
-          {/*
-            Shown straight away rather than behind the log's loading flag.
-            Offline with a cold cache the first snapshot can take a long time or
-            never arrive at all, and a companion stuck on "counting the days…"
-            is worse than one that starts at nothing and corrects itself the
-            moment the history lands.
-          */}
-          <p className="companion-card__streak" data-testid="streak-label">
-            {streakLabel(streak.current, streak.practisedToday)}
-          </p>
-        </div>
-      </div>
+      </section>
 
       {celebrating && milestone ? (
         <p className="notice notice--ok" data-testid="milestone-notice">
@@ -141,42 +136,69 @@ export function CompanionCard({ user, listening = false, defaultSound = true }: 
         </p>
       ) : null}
 
-      {next ? (
-        <div className="milestone">
-          <div className="milestone__labels">
-            <span>{next.name}</span>
-            <span className="milestone__count">
-              {streak.current} / {next.days} days
-            </span>
-          </div>
-          <div
-            className="beatbar"
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={Math.round(progress * 100)}
-            aria-label={`Progress toward ${next.name}`}
-          >
-            <span className="beatbar__fill" style={{ width: `${progress * 100}%` }} />
-          </div>
+      {/* The streak, as the number it is. */}
+      <section className="card streak">
+        <div className="streak__top">
+          <p className="streak__count">
+            <span className="streak__number">{streak.current}</span>
+            <span className="streak__unit">day streak</span>
+          </p>
+          <span className="streak__best">best: {streak.longest}</span>
         </div>
-      ) : null}
 
-      {earned.length > 0 ? (
-        <ul className="badges" data-testid="badges">
-          {earned.map((m) => (
-            <li key={m.days} className="badge" title={m.blurb}>
-              <span className="badge__days">{m.days}d</span>
-              <span className="badge__name">{m.name}</span>
-            </li>
-          ))}
+        <p className="companion-card__streak" data-testid="streak-label">
+          {streakLabel(streak.current, streak.practisedToday)}
+        </p>
+
+        {next ? (
+          <>
+            <div
+              className="meter"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(progress * 100)}
+              aria-label={`Progress toward ${next.name}`}
+            >
+              <span className="meter__fill" style={{ width: `${progress * 100}%` }} />
+            </div>
+            <div className="streak__legend">
+              <span>
+                {next.days - streak.current} day{next.days - streak.current === 1 ? '' : 's'} to the{' '}
+                {next.name} badge
+              </span>
+              <span className="streak__ratio">
+                {streak.current}/{next.days}
+              </span>
+            </div>
+          </>
+        ) : (
+          <p className="card__hint">Every badge earned. Genuinely.</p>
+        )}
+      </section>
+
+      {/* Every badge, earned and not — an empty slot is the reason to come back. */}
+      <section className="card">
+        <p className="section-head__eyebrow">
+          Badges · {earned.length} of {STREAK_MILESTONES.length}
+        </p>
+        <ul className="badgegrid" data-testid="badges">
+          {STREAK_MILESTONES.map((m) => {
+            const won = m.days <= streak.longest;
+            return (
+              <li key={m.days} className={`badgegrid__item${won ? ' badgegrid__item--won' : ''}`}>
+                <span className="badgegrid__disc" title={m.blurb}>
+                  {won ? m.days : ''}
+                </span>
+                <span className="badgegrid__name">{m.name}</span>
+              </li>
+            );
+          })}
         </ul>
-      ) : null}
-
-      <p className="card__hint">
-        Best run: {streak.longest} day{streak.longest === 1 ? '' : 's'} · {streak.totalDays} day
-        {streak.totalDays === 1 ? '' : 's'} practised in total.
-      </p>
-    </section>
+        <p className="card__hint">
+          {streak.totalDays} day{streak.totalDays === 1 ? '' : 's'} practised in total.
+        </p>
+      </section>
+    </>
   );
 }
