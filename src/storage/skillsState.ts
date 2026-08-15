@@ -3,6 +3,7 @@ import {
   collection,
   doc,
   getDoc,
+  getDocsFromCache,
   increment,
   onSnapshot,
   orderBy,
@@ -76,6 +77,14 @@ function toSkillPracticeState(
  * Ordered by `dueAt` so output is deterministic. Offline this serves from the
  * IndexedDB cache and keeps firing as local writes land, which is what lets the
  * practice panel update instantly with no network.
+ *
+ * **Cache-first, deliberately.** `onSnapshot` on a *cold* cache with no
+ * reachable server can wait indefinitely for its first snapshot: there is
+ * nothing local to serve and nothing remote to ask. A first-ever launch offline
+ * then sits on "working out what to practise…" forever, which makes a liar of
+ * the whole offline-first design. Reading the cache explicitly settles that in
+ * milliseconds — with an empty result, which is the correct answer for a user
+ * who has never practised — and the live listener takes over from there.
  */
 export function subscribeUserSkillStates(
   uid: string,
@@ -84,10 +93,26 @@ export function subscribeUserSkillStates(
 ): Unsubscribe {
   const skillsQuery = query(skillsCollection(uid), orderBy('dueAt', 'asc'));
 
+  let livePublished = false;
+
+  void getDocsFromCache(skillsQuery)
+    .then((snapshot) => {
+      if (livePublished) return;
+      onChange(
+        snapshot.docs
+          .map(toSkillPracticeState)
+          .filter((state): state is SkillPracticeState => state !== null),
+      );
+    })
+    .catch(() => {
+      if (!livePublished) onChange([]);
+    });
+
   return onSnapshot(
     skillsQuery,
     { includeMetadataChanges: true },
     (snapshot) => {
+      livePublished = true;
       const states = snapshot.docs
         .map(toSkillPracticeState)
         .filter((state): state is SkillPracticeState => state !== null);

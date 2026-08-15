@@ -1,10 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { useSkillStates } from '../hooks/useSkillStates';
 import { upsertSkillPracticeState } from '../storage/skillsState';
-import { fullCatalog, planSession, type PlannedItem } from '../domain/sessionPlanner';
+import {
+  fullCatalog,
+  planStructuredSession,
+  summariseOutcome,
+  type SessionPhase,
+  type StructuredSession,
+} from '../domain/sessionPlanner';
 import { hasDiagram } from '../domain/shapeTrainer';
 import { progressionIdFromSkillId, progressionsForSkill } from '../domain/progressions';
+import { appendSession } from '../storage/sessionLog';
 import {
   CATEGORY_LABELS,
   FAMILY_LABELS,
@@ -28,6 +35,34 @@ const RESULTS: { value: PracticeResult; label: string; variant: string }[] = [
   { value: 'good', label: 'Good', variant: 'grade--good' },
   { value: 'hard', label: 'Hard', variant: 'grade--hard' },
   { value: 'fail', label: 'Fail', variant: 'grade--fail' },
+];
+
+/** The shape of a sitting, in the order it is played. */
+const PHASES: {
+  key: keyof Omit<StructuredSession, 'all'>;
+  /** Matches `SessionPhase`, so the CSS and the domain agree on the name. */
+  phase: SessionPhase;
+  title: string;
+  blurb: string;
+}[] = [
+  {
+    key: 'warmUp',
+    phase: 'warm-up',
+    title: 'Warm-up',
+    blurb: 'Something you already know, to get the hands moving. No pressure here.',
+  },
+  {
+    key: 'rotation',
+    phase: 'rotation',
+    title: 'Rotation',
+    blurb: 'The work, interleaved so no two neighbours drill the same thing.',
+  },
+  {
+    key: 'coolDown',
+    phase: 'cool-down',
+    title: 'Cool-down',
+    blurb: 'Finish on something that sounds good — that is what you will remember.',
+  },
 ];
 
 const RELATIVE_TIME = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
@@ -60,8 +95,10 @@ export function PracticePanel({
 }: PracticePanelProps) {
   const { states, loading, error } = useSkillStates(user.uid);
 
-  const [plan, setPlan] = useState<PlannedItem[] | null>(null);
+  const [session, setSession] = useState<StructuredSession | null>(null);
   const [graded, setGraded] = useState<Record<string, PracticeResult>>({});
+  /** One log record per sitting, written once the last card is graded. */
+  const filedRef = useRef(false);
 
   const stateById = useMemo(
     () => new Map(states.map((state) => [state.skillId, state])),
@@ -71,14 +108,15 @@ export function PracticePanel({
   // Plan once, after the first snapshot. Deliberately not re-run when `states`
   // changes — see the note at the top of the file.
   useEffect(() => {
-    if (!loading && plan === null) {
-      setPlan(planSession(fullCatalog(SKILL_CATALOG), states, new Date()));
+    if (!loading && session === null) {
+      setSession(planStructuredSession(fullCatalog(SKILL_CATALOG), states, new Date()));
     }
-  }, [loading, plan, states]);
+  }, [loading, session, states]);
 
   const replan = useCallback(() => {
     setGraded({});
-    setPlan(planSession(fullCatalog(SKILL_CATALOG), states, new Date()));
+    filedRef.current = false;
+    setSession(planStructuredSession(fullCatalog(SKILL_CATALOG), states, new Date()));
   }, [states]);
 
   const grade = useCallback(
@@ -102,8 +140,41 @@ export function PracticePanel({
   );
 
   const now = new Date();
-  const remaining = plan ? plan.filter((item) => !graded[item.definition.id]).length : 0;
-  const total = plan?.length ?? 0;
+  const items = session?.all ?? [];
+  const remaining = items.filter((item) => !graded[item.definition.id]).length;
+  const total = items.length;
+
+  /**
+   * One record for the whole sitting, alongside the per-skill grades.
+   *
+   * Skill state answers "when should this come back"; this answers "did I
+   * practise on Tuesday, and how did it go" — which is what the streak and any
+   * future evaluation of the scheduler are built from. Written once, when the
+   * last card is graded, and never awaited.
+   */
+  useEffect(() => {
+    if (filedRef.current || total === 0 || remaining > 0) return;
+    filedRef.current = true;
+
+    const outcome = summariseOutcome(
+      items.map((item) => graded[item.definition.id]).filter((g): g is PracticeResult => !!g),
+      total,
+    );
+
+    void appendSession(user.uid, {
+      kind: 'today',
+      subject: 'session',
+      title: `Today's Session — ${total} skills`,
+      accuracy: outcome.accuracy,
+      steps: outcome.items,
+      hits: outcome.easy + outcome.good,
+      partials: outcome.hard,
+      misses: outcome.fail,
+      graded: 'self',
+    }).catch((writeError: unknown) => {
+      console.error('[practice] Session summary did not reach the server.', writeError);
+    });
+  }, [items, graded, remaining, total, user.uid]);
 
   return (
     <section className="card">
@@ -122,9 +193,9 @@ export function PracticePanel({
         </p>
       ) : null}
 
-      {loading || plan === null ? (
+      {loading || session === null ? (
         <p className="card__body">Working out what to practise…</p>
-      ) : plan.length === 0 ? (
+      ) : session.all.length === 0 ? (
         <p className="card__body">
           You&apos;re all caught up. Come back later, or add more skills to the catalog.
         </p>
@@ -135,8 +206,18 @@ export function PracticePanel({
             visit — be honest rather than generous.
           </p>
 
-          <ol className="tasklist">
-            {plan.map((item) => {
+          {PHASES.map(({ key, phase, title, blurb }) => {
+            const phaseItems = session[key];
+            if (phaseItems.length === 0) return null;
+
+            return (
+              <div key={key} className="phase" data-phase={phase}>
+                <div className="phase__header">
+                  <h3 className="phase__title">{title}</h3>
+                  <p className="phase__blurb">{blurb}</p>
+                </div>
+                <ol className="tasklist">
+                  {phaseItems.map((item) => {
               const { definition } = item;
               const result = graded[definition.id];
               const liveState = stateById.get(definition.id);
@@ -214,12 +295,16 @@ export function PracticePanel({
                 </li>
               );
             })}
-          </ol>
+                </ol>
+              </div>
+            );
+          })}
 
           {remaining === 0 ? (
             <>
-              <p className="notice notice--ok">
-                Session complete. Everything you graded is scheduled to come back on its own.
+              <p className="notice notice--ok" data-testid="session-complete">
+                Session complete — {total} skills, filed to your practice log. Everything you
+                graded is scheduled to come back on its own.
               </p>
               <button type="button" className="button button--primary" onClick={replan}>
                 Plan another session

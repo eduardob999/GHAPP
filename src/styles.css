@@ -1167,6 +1167,38 @@ code {
   margin-bottom: 12px;
 }
 
+/* Session shape ----------------------------------------------------------- */
+
+.phase {
+  margin-bottom: 18px;
+}
+
+.phase__header {
+  margin-bottom: 10px;
+  padding-left: 10px;
+  border-left: 3px solid color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.phase__title {
+  margin: 0;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+}
+
+.phase__blurb {
+  margin: 2px 0 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.phase[data-phase='cool-down'] .phase__header {
+  border-left-color: color-mix(in srgb, var(--ok) 55%, transparent);
+}
+
+.phase[data-phase='warm-up'] .phase__header {
+  border-left-color: color-mix(in srgb, var(--pending) 55%, transparent);
+}
+
 @keyframes pulse {
   50% {
     opacity: 0.25;

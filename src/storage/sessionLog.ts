@@ -2,12 +2,14 @@ import {
   Timestamp,
   addDoc,
   collection,
+  getDocsFromCache,
   limit,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
   type DocumentData,
+  type QueryDocumentSnapshot,
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -90,7 +92,38 @@ export async function appendSession(uid: string, entry: SessionEntry): Promise<v
   await addDoc(sessionsCollection(uid), payload);
 }
 
-/** Most recent sessions first. */
+/** One log document, as the app's own shape. */
+function toSessionRecord(doc: QueryDocumentSnapshot): SessionRecord {
+  const data = doc.data({ serverTimestamps: 'estimate' });
+
+  return {
+    id: doc.id,
+    kind: (data['kind'] ?? 'drill') as SessionKind,
+    subject: String(data['subject'] ?? ''),
+    title: String(data['title'] ?? ''),
+    accuracy: Number(data['accuracy'] ?? 0),
+    steps: Number(data['steps'] ?? 0),
+    hits: Number(data['hits'] ?? 0),
+    partials: Number(data['partials'] ?? 0),
+    misses: Number(data['misses'] ?? 0),
+    ...(data['tempoBpm'] !== undefined ? { tempoBpm: Number(data['tempoBpm']) } : {}),
+    ...(data['bestStreak'] !== undefined ? { bestStreak: Number(data['bestStreak']) } : {}),
+    ...(data['meanTimingMs'] !== undefined ? { meanTimingMs: Number(data['meanTimingMs']) } : {}),
+    ...(data['recordedAt'] ? { recordedAt: data['recordedAt'] as Timestamp } : {}),
+    ...(data['at'] ? { at: data['at'] as Timestamp } : {}),
+    ...(data['graded'] === 'self' || data['graded'] === 'audio'
+      ? { graded: data['graded'] as 'self' | 'audio' }
+      : {}),
+  };
+}
+
+/**
+ * Most recent sessions first.
+ *
+ * Cache-first for the same reason as `subscribeUserSkillStates`: on a cold
+ * cache with no server, the first live snapshot may never arrive, and a streak
+ * counter that never resolves is worse than one that starts at zero.
+ */
 export function subscribeRecentSessions(
   uid: string,
   count: number,
@@ -99,38 +132,22 @@ export function subscribeRecentSessions(
 ): Unsubscribe {
   const recent = query(sessionsCollection(uid), orderBy('at', 'desc'), limit(count));
 
+  let livePublished = false;
+
+  void getDocsFromCache(recent)
+    .then((snapshot) => {
+      if (!livePublished) onChange(snapshot.docs.map(toSessionRecord));
+    })
+    .catch(() => {
+      if (!livePublished) onChange([]);
+    });
+
   return onSnapshot(
     recent,
     { includeMetadataChanges: true },
     (snapshot) => {
-      onChange(
-        snapshot.docs.map((doc) => {
-          const data = doc.data({ serverTimestamps: 'estimate' });
-          return {
-            id: doc.id,
-            kind: (data['kind'] ?? 'drill') as SessionKind,
-            subject: String(data['subject'] ?? ''),
-            title: String(data['title'] ?? ''),
-            accuracy: Number(data['accuracy'] ?? 0),
-            steps: Number(data['steps'] ?? 0),
-            hits: Number(data['hits'] ?? 0),
-            partials: Number(data['partials'] ?? 0),
-            misses: Number(data['misses'] ?? 0),
-            ...(data['tempoBpm'] !== undefined ? { tempoBpm: Number(data['tempoBpm']) } : {}),
-            ...(data['bestStreak'] !== undefined
-              ? { bestStreak: Number(data['bestStreak']) }
-              : {}),
-            ...(data['meanTimingMs'] !== undefined
-              ? { meanTimingMs: Number(data['meanTimingMs']) }
-              : {}),
-            ...(data['recordedAt'] ? { recordedAt: data['recordedAt'] as Timestamp } : {}),
-            ...(data['at'] ? { at: data['at'] as Timestamp } : {}),
-            ...(data['graded'] === 'self' || data['graded'] === 'audio'
-              ? { graded: data['graded'] }
-              : {}),
-          };
-        }),
-      );
+      livePublished = true;
+      onChange(snapshot.docs.map(toSessionRecord));
     },
     (error) => {
       console.error('[firestore] Session log subscription failed.', error);
