@@ -65,6 +65,13 @@ export interface ProgressionChord {
   shapeLabel?: string;
 }
 
+export interface StrummingPattern {
+  /** Down and up arrows across the bar, e.g. "D · D U · U D U". */
+  pattern: string;
+  /** What to listen for, in one line. */
+  note: string;
+}
+
 export interface ChordProgression {
   id: string;
   title: string;
@@ -78,6 +85,15 @@ export interface ChordProgression {
   teaches?: string;
   /** Tuning required. Absent means standard. */
   tuning?: TuningId;
+  /**
+   * How to strum it.
+   *
+   * Chords with no rhythm are half a song: the shapes are the easy half, and
+   * the pattern is what makes it recognisable. Written as arrows over the beat
+   * rather than as notation, because someone who can read notation does not
+   * need this app to tell them.
+   */
+  strumming?: StrummingPattern;
   /**
    * Catalog skill ids this progression is a workout for, so Today's Session can
    * offer a picking-hand card straight into Chord Hero. Progressions are already

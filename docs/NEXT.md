@@ -71,17 +71,18 @@ always the next thing to do.
       against a size container — a percentage max-height cannot resolve against
       a `minmax(0, 1fr)` track, which is precisely why it overflowed on a phone
       and looked fine headless.
-- [ ] **24. Show the chords before the count-in.** Chord Hero counts you in with
+- [x] **24. Show the chords before the count-in.** Chord Hero counts you in with
       nothing but a number: you cannot see the first chord, let alone the
       sequence. Show the whole sequence on the count-in, with the opening chord
       marked, so the hands are ready before the bar starts.
-- [ ] **25. Strumming patterns.** Songs carry chords and no rhythm, which is
+- [x] **25. Strumming patterns.** Songs carry chords and no rhythm, which is
       half the song missing. Add a pattern per song and show it while playing.
 - [ ] **26. Riffs in string and fret, and a sniper that plays them.** Riff steps
       read "A2 C3 D3 E3", which is note names with octaves — unreadable unless
       you already know the fretboard. Show string and fret instead. And String
       Sniper should drill *riffs* rather than single notes: same scoring, real
-      music.
+      music. Half done: riffs now read as string:fret everywhere. The sniper
+      rebuild is still to do.
 
 - [x] **22. No timer — the playing drives it.** The auto session advances on a
       countdown: every activity carries `seconds`, and it moves on when the

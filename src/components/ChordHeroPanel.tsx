@@ -31,6 +31,7 @@ import {
 } from '../domain/progressions';
 import { SKILL_BY_ID } from '../domain/skills';
 import { describeMissing, isUnlocked, lockStateOf } from '../domain/curriculum';
+import { describeRiffPositions } from '../domain/earGrading';
 import { MicNotice } from './MicNotice';
 import { useSkillStates } from '../hooks/useSkillStates';
 import { useRecentSessions } from '../hooks/useRecentSessions';
@@ -90,9 +91,17 @@ function describeTiming(offsetMs: number | null): string {
   return `${Math.abs(Math.round(offsetMs ?? 0))}ms ${TIMING_TEXT[verdict]}`;
 }
 
+/**
+ * What a step is called on screen.
+ *
+ * Riffs are written as string and fret, not as note names. "A2 C3 D3 E3" is
+ * only readable if you already know the fretboard — and anyone who does has no
+ * use for an app telling them where the notes are. "5:0 5:3 4:0 4:2" can be
+ * played by anyone holding a guitar.
+ */
 function stepLabel(step: ProgressionChord): string {
   return step.mode === 'riff' && step.notes
-    ? step.notes.join(' ')
+    ? describeRiffPositions(step.notes)
     : shortChordLabel(step.root, step.quality);
 }
 
@@ -852,10 +861,45 @@ export function ChordHeroPanel({
       ) : null}
 
       {phase === 'countin' ? (
-        <div className="countdown">
-          <span className="countdown__value">{COUNT_IN_BEATS - countInBeat}</span>
-          <span className="countdown__unit">get ready — {progression.title}</span>
-        </div>
+        <>
+          <div className="countdown">
+            <span className="countdown__value">{COUNT_IN_BEATS - countInBeat}</span>
+            <span className="countdown__unit">get ready — {progression.title}</span>
+          </div>
+
+          {/*
+            The whole sequence, before the first bar rather than after it. A
+            count-in that shows only a number tells you when to start and not
+            what to play — you meet the opening chord at the moment you are
+            already late for it.
+          */}
+          <p className="auto__eyebrow playhead__label">Coming up</p>
+
+          {progression.chords.some((step) => step.mode === 'riff') ? (
+            <p className="card__hint" data-testid="riff-legend">
+              Notes are written <strong>string:fret</strong> — 6 is the thickest string, 0 is open.
+            </p>
+          ) : null}
+
+          <ol className="sequence" data-testid="countin-sequence">
+            {progression.chords.map((step, position) => (
+              <li
+                key={step.id}
+                className={`sequence__step${position === 0 ? ' sequence__step--first' : ''}`}
+              >
+                <span className="sequence__chord">{stepLabel(step)}</span>
+                {position === 0 ? <span className="sequence__tag">first</span> : null}
+              </li>
+            ))}
+          </ol>
+
+          {progression.strumming ? (
+            <p className="strumming" data-testid="countin-strumming">
+              <span className="strumming__pattern">{progression.strumming.pattern}</span>
+              <span className="strumming__note">{progression.strumming.note}</span>
+            </p>
+          ) : null}
+        </>
       ) : null}
 
       {phase === 'playing' && active ? (

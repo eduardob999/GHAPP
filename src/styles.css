@@ -1468,6 +1468,81 @@ code {
   text-align: center;
 }
 
+/* The sequence shown during the count-in, and the strum under it. */
+.sequence {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.sequence__step {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.sequence__step--first {
+  background: color-mix(in srgb, var(--accent) 20%, var(--bg-inset));
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.sequence__tag {
+  color: var(--accent-soft);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.strumming {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+}
+
+.strumming__pattern {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+}
+
+.strumming__note {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.auto__riff {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  margin: 0;
+}
+
+.auto__riffpositions {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.auto__rifflegend {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+
 .skiplink {
   position: absolute;
   left: 12px;

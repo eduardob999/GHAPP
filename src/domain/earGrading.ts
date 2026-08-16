@@ -203,3 +203,74 @@ export function describeEarResult(target: TargetChord, result: EarResult): strin
         : `That was not ${name} yet.`;
   }
 }
+
+/* ── Where a note lives on the neck ────────────────────────────────────────── */
+
+/** Open string pitches, 6th first, as MIDI numbers: E2 A2 D3 G3 B3 E4. */
+const OPEN_STRING_MIDI = [40, 45, 50, 55, 59, 64];
+
+const NOTE_PATTERN = /^([A-G][#b]?)(-?\d+)$/;
+
+export interface FretPosition {
+  /** 6 (low E) to 1 (high E). */
+  string: number;
+  fret: number;
+}
+
+/** MIDI number for a pitch name with an octave, or null if it is not one. */
+export function midiOf(note: string): number | null {
+  const match = NOTE_PATTERN.exec(note);
+  if (!match) return null;
+
+  const flats: Record<string, string> = { Db: 'C#', Eb: 'D#', Gb: 'F#', Ab: 'G#', Bb: 'A#' };
+  const name = flats[match[1]!] ?? match[1]!;
+  const pitchClass = PITCH_CLASS_NAMES.indexOf(name as (typeof PITCH_CLASS_NAMES)[number]);
+  if (pitchClass === -1) return null;
+
+  return pitchClass + 12 * (Number(match[2]) + 1);
+}
+
+/**
+ * Where to play a note, as a string and a fret.
+ *
+ * Riffs were written as "A2 C3 D3 E3" — note names with octaves, which is only
+ * readable if you already know the fretboard, and someone who already knows the
+ * fretboard does not need an app to tell them where the notes are. The same
+ * riff as "6:5 5:3 5:5 4:2" can be played by anyone holding a guitar.
+ *
+ * The lowest playable position is chosen, and positions within the first five
+ * frets are preferred, because that is where a beginner's hand already is.
+ */
+export function fretPositionOf(note: string, maxFret = 12): FretPosition | null {
+  const midi = midiOf(note);
+  if (midi === null) return null;
+
+  const options: FretPosition[] = [];
+
+  for (let index = 0; index < OPEN_STRING_MIDI.length; index += 1) {
+    const fret = midi - OPEN_STRING_MIDI[index]!;
+    if (fret >= 0 && fret <= maxFret) options.push({ string: 6 - index, fret });
+  }
+
+  if (options.length === 0) return null;
+
+  // Prefer the open position: lowest fret first, then the thickest string that
+  // reaches it, which keeps a riff inside one hand position.
+  options.sort((a, b) => a.fret - b.fret || b.string - a.string);
+  return options[0]!;
+}
+
+/** "6:5" — string then fret, the way a chord chart reads. */
+export function formatFretPosition(position: FretPosition): string {
+  return `${position.string}:${position.fret}`;
+}
+
+/** A riff written where the hands can find it. */
+export function describeRiffPositions(notes: readonly string[]): string {
+  return notes
+    .map((note) => {
+      const position = fretPositionOf(note);
+      return position ? formatFretPosition(position) : note;
+    })
+    .join('  ');
+}

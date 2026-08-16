@@ -1,4 +1,4 @@
-import type { ChordProgression, ProgressionChord } from './progressions';
+import type { ChordProgression, ProgressionChord, StrummingPattern } from './progressions';
 
 /**
  * Songs.
@@ -35,6 +35,14 @@ interface SongSpec {
   chords: [string, ProgressionChord['quality'], number?][];
   /** Said out loud when the song is presented, e.g. a capo note. */
   note?: string;
+  /**
+   * The strum.
+   *
+   * Every song here had chords and no rhythm, which is the half that makes a
+   * song recognisable — you can hold the right shapes all day and it will not
+   * sound like the record without the pattern.
+   */
+  strumming: StrummingPattern;
 }
 
 const SONGS: SongSpec[] = [
@@ -45,6 +53,7 @@ const SONGS: SongSpec[] = [
     teaches: 'A, D and E — three chords, and the cheerfullest song on this list.',
     tempoBpm: 74,
     level: 'beginner',
+    strumming: { pattern: 'D · D U · U D U', note: 'Reggae feel: leave the 2 and 4 empty and let the up-strokes carry it.' },
     chords: [['A', 'maj'], ['A', 'maj'], ['D', 'maj'], ['A', 'maj'], ['E', 'maj'], ['D', 'maj'], ['A', 'maj'], ['A', 'maj']],
   },
   {
@@ -54,6 +63,7 @@ const SONGS: SongSpec[] = [
     teaches: 'The four-chord loop that half of folk music is built on.',
     tempoBpm: 68,
     level: 'beginner',
+    strumming: { pattern: 'D · D U · U D U', note: 'The everything pattern. Keep the hand moving even where you do not strike.' },
     chords: [['G', 'maj'], ['D', 'maj'], ['A', 'min'], ['A', 'min'], ['G', 'maj'], ['D', 'maj'], ['C', 'maj'], ['C', 'maj']],
   },
   {
@@ -63,6 +73,7 @@ const SONGS: SongSpec[] = [
     teaches: 'Three chords, one bar each. The first song most people finish.',
     tempoBpm: 76,
     level: 'beginner',
+    strumming: { pattern: 'D D D D', note: 'Four straight down-strokes. Nothing clever — get them even.' },
     chords: [['G', 'maj'], ['C', 'maj'], ['G', 'maj'], ['C', 'maj'], ['D', 'maj'], ['C', 'maj'], ['G', 'maj'], ['G', 'maj']],
   },
   {
@@ -72,6 +83,7 @@ const SONGS: SongSpec[] = [
     teaches: 'Two chords, back and forth. Good for getting the strumming hand steady.',
     tempoBpm: 80,
     level: 'beginner',
+    strumming: { pattern: 'D · D U · U D U', note: 'Loose and swung. Brush the strings rather than hitting them.' },
     chords: [['E', 'min'], ['D', 'maj'], ['E', 'min'], ['D', 'maj'], ['E', 'min'], ['D', 'maj'], ['E', 'min'], ['D', 'maj']],
   },
   {
@@ -81,6 +93,7 @@ const SONGS: SongSpec[] = [
     teaches: 'The 50s progression — I–vi–IV–V — in the key everyone plays it in.',
     tempoBpm: 72,
     level: 'beginner',
+    strumming: { pattern: 'D · · U · U D ·', note: 'Sparse. The gaps are the groove — resist filling them.' },
     chords: [['G', 'maj'], ['G', 'maj'], ['E', 'min'], ['E', 'min'], ['C', 'maj'], ['D', 'maj'], ['G', 'maj'], ['G', 'maj']],
   },
   {
@@ -90,6 +103,7 @@ const SONGS: SongSpec[] = [
     teaches: 'Four chords that never resolve. Let each one ring its full bar.',
     tempoBpm: 76,
     level: 'beginner',
+    strumming: { pattern: 'D D U · U D U', note: 'Let each chord ring the full bar; the strum drives, the chord sustains.' },
     chords: [['E', 'min'], ['C', 'maj'], ['G', 'maj'], ['D', 'maj'], ['E', 'min'], ['C', 'maj'], ['G', 'maj'], ['D', 'maj']],
   },
   {
@@ -100,6 +114,7 @@ const SONGS: SongSpec[] = [
     tempoBpm: 82,
     level: 'beginner',
     note: 'Recorded with a capo at the 1st fret. Without one it sounds a semitone low — the shapes are the same.',
+    strumming: { pattern: 'D · D U · U D U', note: 'Fast changes, so keep the strum steady and let the chords catch up.' },
     chords: [['A', 'min'], ['G', 'maj'], ['C', 'maj'], ['C', 'maj'], ['A', 'min'], ['G', 'maj'], ['C', 'maj'], ['C', 'maj']],
   },
   {
@@ -109,6 +124,7 @@ const SONGS: SongSpec[] = [
     teaches: 'D–A–G, and a strum that has to stay even while the chords move fast.',
     tempoBpm: 84,
     level: 'beginner',
+    strumming: { pattern: 'D D U · U D U', note: 'Country shuffle. Accent the first down-stroke of each bar.' },
     chords: [['D', 'maj'], ['A', 'maj'], ['G', 'maj'], ['D', 'maj'], ['D', 'maj'], ['A', 'maj'], ['G', 'maj'], ['D', 'maj']],
   },
   {
@@ -119,6 +135,7 @@ const SONGS: SongSpec[] = [
     tempoBpm: 78,
     level: 'beginner',
     note: 'Recorded with a capo at the 4th fret.',
+    strumming: { pattern: 'D · D U · U D U', note: 'Light and bouncy. Palm off the strings between chords.' },
     chords: [['G', 'maj'], ['D', 'maj'], ['E', 'min'], ['C', 'maj'], ['G', 'maj'], ['D', 'maj'], ['E', 'min'], ['C', 'maj']],
   },
   {
@@ -129,6 +146,7 @@ const SONGS: SongSpec[] = [
     tempoBpm: 64,
     level: 'beginner',
     note: 'Three beats per bar. Count 1-2-3, not 1-2-3-4.',
+    strumming: { pattern: 'D · D · D ·', note: 'A waltz: three beats, one strum each. Count 1-2-3 out loud at first.' },
     chords: [['G', 'maj', 3], ['E', 'min', 3], ['C', 'maj', 3], ['D', 'maj', 3], ['G', 'maj', 3], ['E', 'min', 3], ['C', 'maj', 3], ['D', 'maj', 3]],
   },
   {
@@ -138,6 +156,7 @@ const SONGS: SongSpec[] = [
     teaches: 'C–G–Am–F. The F is the hard one, and the reason this is not first on the list.',
     tempoBpm: 70,
     level: 'intermediate',
+    strumming: { pattern: 'D · D U · U D U', note: 'Even and unhurried. The F is the only hard part — the strum is not.' },
     chords: [['C', 'maj'], ['G', 'maj'], ['A', 'min'], ['F', 'maj'], ['C', 'maj'], ['G', 'maj'], ['F', 'maj'], ['C', 'maj']],
   },
   {
@@ -147,6 +166,7 @@ const SONGS: SongSpec[] = [
     teaches: 'Four chords, one bar each, for the whole song. Ideal for locking in a strum.',
     tempoBpm: 76,
     level: 'beginner',
+    strumming: { pattern: 'D · · · D · · ·', note: 'One strum per half bar. Almost nothing, and that is the point.' },
     chords: [['D', 'maj'], ['A', 'maj'], ['B', 'min'], ['G', 'maj'], ['D', 'maj'], ['A', 'maj'], ['B', 'min'], ['G', 'maj']],
   },
   {
@@ -156,6 +176,7 @@ const SONGS: SongSpec[] = [
     teaches: 'D–C–G on a loop. The changes are quick — start slower than feels right.',
     tempoBpm: 88,
     level: 'beginner',
+    strumming: { pattern: 'D · D U · U D U', note: 'The changes come fast — start slower than feels right.' },
     chords: [['D', 'maj', 2], ['C', 'maj', 2], ['G', 'maj', 4], ['D', 'maj', 2], ['C', 'maj', 2], ['G', 'maj', 4]],
   },
   {
@@ -166,6 +187,7 @@ const SONGS: SongSpec[] = [
     tempoBpm: 74,
     level: 'intermediate',
     note: 'Recorded with a capo at the 2nd fret.',
+    strumming: { pattern: 'D · D U · U D U', note: 'The pattern is the song. Keep the top two strings ringing throughout.' },
     chords: [['E', 'min7'], ['G', 'maj'], ['D', 'maj'], ['A', 'maj'], ['E', 'min7'], ['G', 'maj'], ['D', 'maj'], ['A', 'maj']],
   },
   {
@@ -175,6 +197,7 @@ const SONGS: SongSpec[] = [
     teaches: 'C–Am–F–G, and the patience to let a slow song stay slow.',
     tempoBpm: 60,
     level: 'intermediate',
+    strumming: { pattern: 'D · D U · U D U', note: 'A slow 6/8 lilt. Let it breathe rather than driving it.' },
     chords: [['C', 'maj'], ['A', 'min'], ['C', 'maj'], ['A', 'min'], ['F', 'maj'], ['G', 'maj'], ['C', 'maj'], ['C', 'maj']],
   },
 ];
@@ -188,6 +211,7 @@ function toProgression(song: SongSpec): ChordProgression {
     tempoBpm: song.tempoBpm,
     description: `${song.artist}.${song.note ? ` ${song.note}` : ''}`,
     teaches: song.teaches,
+    strumming: song.strumming,
     chords: song.chords.map(([root, quality, beats], index) => ({
       id: `s${index}`,
       root,

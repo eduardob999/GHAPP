@@ -15,6 +15,7 @@ import {
 import { useChordDetector } from '../hooks/useChordDetector';
 import {
   describeEarResult,
+  describeRiffPositions,
   gradeByEar,
   targetChordFor,
   type HeardChord,
@@ -540,6 +541,27 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
         <p className="auto__title" data-testid="auto-title">
           {activity?.title}
         </p>
+
+        {(() => {
+          const progression = progressionOf(activity);
+          const riffNotes = progression?.chords.flatMap((step) => step.notes ?? []) ?? [];
+          if (riffNotes.length === 0) return null;
+
+          return (
+            <p className="auto__riff" data-testid="auto-riff">
+              <span className="auto__riffpositions">{describeRiffPositions(riffNotes)}</span>
+              <span className="auto__rifflegend">string:fret · 6 is thickest, 0 is open</span>
+            </p>
+          );
+        })()}
+
+        {progressionOf(activity)?.strumming ? (
+          <p className="strumming" data-testid="auto-strumming">
+            <span className="strumming__pattern">
+              {progressionOf(activity)!.strumming!.pattern}
+            </span>
+          </p>
+        ) : null}
 
         {diagram ? (
           <FretboardDiagram
