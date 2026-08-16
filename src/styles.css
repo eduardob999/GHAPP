@@ -80,6 +80,8 @@ code {
 /* Layout ------------------------------------------------------------------ */
 
 .screen {
+  display: flex;
+  flex-direction: column;
   min-height: 100dvh;
   padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
 }
@@ -92,9 +94,21 @@ code {
 .content {
   display: grid;
   gap: 16px;
+  width: 100%;
   max-width: 640px;
   margin: 0 auto;
   padding: 24px 0;
+}
+
+/*
+ * The auto session is the one screen that must not scroll, so it — and only it
+ * — claims the leftover height instead of growing the page.
+ */
+.content:has(.auto--playing) {
+  flex: 1;
+  min-height: 0;
+  padding-bottom: 8px;
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .card {
@@ -1734,10 +1748,15 @@ code {
 /*
  * The session fits the screen it is played on.
  *
- * Someone holding a guitar cannot scroll, and a chord diagram that is half
- * below the fold is no use at all. The stage takes whatever is left after the
- * rail and the actions, and its contents shrink to fit rather than pushing the
- * page taller.
+ * Someone holding a guitar cannot scroll, and a chord diagram half below the
+ * fold is no use at all.
+ *
+ * The first attempt at this subtracted a measured constant from `100dvh` —
+ * which was measured in headless Chrome, where there is no address bar. On a
+ * real phone the browser chrome ate the difference and the stage clipped its
+ * own diagram. So nothing is measured now: the screen is a flex column, the
+ * content takes what is left, and the stage shrinks its contents rather than
+ * growing past the fold.
  */
 .auto {
   display: grid;
@@ -1746,23 +1765,32 @@ code {
 
 .auto--playing {
   grid-template-rows: auto auto minmax(0, 1fr) auto;
-  /* Topbar, the content's own padding, and the tab bar. Measured rather than
-     guessed: at 390×844 this leaves the card exactly on the fold. */
-  height: calc(100dvh - 246px);
-  min-height: 340px;
+  height: 100%;
+  min-height: 0;
 }
 
 .auto--playing .auto__stage {
   min-height: 0;
-  overflow: hidden;
   align-content: center;
   gap: 10px;
-  padding: 16px 14px;
+  padding: 14px;
+  /*
+   * A size container, so the diagram can be sized as a fraction of *this* box.
+   * `max-height: 100%` cannot work here: a percentage height resolves against a
+   * definite parent height, and a grid track sized `minmax(0, 1fr)` is not
+   * definite for that purpose — which is exactly how the diagram came to
+   * overflow the card by 349px on a phone while looking fine in a headless
+   * viewport tall enough to hide the problem.
+   */
+  container-type: size;
 }
 
+/* The diagram scales to the space it is given rather than clipping. */
 .auto--playing .fretboard {
-  max-height: 34vh;
+  max-height: 58cqh;
+  max-width: 100cqw;
   width: auto;
+  height: auto;
 }
 
 .auto--playing .auto__title {

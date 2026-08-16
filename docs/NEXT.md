@@ -61,13 +61,16 @@ always the next thing to do.
 
 ## Next
 
-- [ ] **23. Fit a real phone, not a headless one.** The session card is sized
+- [x] **23. Fit a real phone, not a headless one.** The session card is sized
       with `calc(100dvh - 246px)`, a number tuned against headless Chrome with
       no browser chrome. On a real phone the address bar eats the difference and
       the stage clips its own diagram. Make the layout flexible — the screen a
       flex column, the stage taking what is left, the diagram scaling down
       instead of being cut off — and verify at a viewport short enough to prove
-      it.
+      it. Done: the screen is a flex column, and the diagram is sized in `cqh`
+      against a size container — a percentage max-height cannot resolve against
+      a `minmax(0, 1fr)` track, which is precisely why it overflowed on a phone
+      and looked fine headless.
 - [ ] **24. Show the chords before the count-in.** Chord Hero counts you in with
       nothing but a number: you cannot see the first chord, let alone the
       sequence. Show the whole sequence on the count-in, with the opening chord
