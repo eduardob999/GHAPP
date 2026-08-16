@@ -1543,6 +1543,37 @@ code {
   letter-spacing: 0.04em;
 }
 
+/* A riff, as a line of positions you can follow with your eyes. */
+.riffline {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.riffline__note {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.riffline__note--done {
+  background: color-mix(in srgb, var(--ok) 22%, transparent);
+  color: var(--text);
+}
+
+.riffline__note--now {
+  background: var(--accent);
+  color: #ffffff;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
 .skiplink {
   position: absolute;
   left: 12px;

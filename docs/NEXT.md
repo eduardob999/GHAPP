@@ -77,12 +77,12 @@ always the next thing to do.
       marked, so the hands are ready before the bar starts.
 - [x] **25. Strumming patterns.** Songs carry chords and no rhythm, which is
       half the song missing. Add a pattern per song and show it while playing.
-- [ ] **26. Riffs in string and fret, and a sniper that plays them.** Riff steps
+- [x] **26. Riffs in string and fret, and a sniper that plays them.** Riff steps
       read "A2 C3 D3 E3", which is note names with octaves — unreadable unless
       you already know the fretboard. Show string and fret instead. And String
       Sniper should drill *riffs* rather than single notes: same scoring, real
-      music. Half done: riffs now read as string:fret everywhere. The sniper
-      rebuild is still to do.
+      music. Done: `src/domain/riffDrill.ts` plus a rebuilt panel — nine riffs,
+      each note ticked off as it is heard, no clock.
 
 - [x] **22. No timer — the playing drives it.** The auto session advances on a
       countdown: every activity carries `seconds`, and it moves on when the

@@ -1,308 +1,259 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useStringSniper } from '../hooks/useStringSniper';
-import {
-  ALL_STRINGS,
-  FRET_PRESETS,
-  STRING_LABELS,
-  describeConfig,
-  overlappingStrings,
-  targetNoteLabel,
-  type FretPreset,
-  type GuitarStringIndex,
-  type SniperHitResult,
-  type StringSniperConfig,
-} from '../domain/stringSniper';
-import { MicNotice } from './MicNotice';
-import {
-  STRIKES_PER_SET,
-  gradeSniperSet,
-  sniperSkillId,
-  summariseStrikes,
-} from '../domain/stringSniper';
-import { upsertSkillPracticeState } from '../storage/skillsState';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useChordDetector } from '../hooks/useChordDetector';
 import { useSkillStates } from '../hooks/useSkillStates';
+import { upsertSkillPracticeState } from '../storage/skillsState';
+import { PROGRESSIONS, progressionSkillId, type ChordProgression } from '../domain/progressions';
+import {
+  expectedNote,
+  gradeRiff,
+  hearNote,
+  isRiffComplete,
+  riffPositions,
+  startRiff,
+  summariseRiff,
+  type RiffDrillState,
+} from '../domain/riffDrill';
+import { MicNotice } from './MicNotice';
 
 /**
- * String Sniper — picking accuracy.
+ * String Sniper — picking accuracy, on real music.
  *
- * Free practice for now: results are shown and discarded, not written to
- * Firestore and not fed to the spaced scheduler.
+ * It used to drill single notes: pick the 3rd string eight times without
+ * touching a neighbour. That measured the right thing — did the pick land where
+ * you aimed — and taught nothing, because nobody plays one string eight times
+ * in any music ever written.
+ *
+ * It now drills riffs. The same measurement, note by note, on something worth
+ * playing: the notes are shown as string and fret, the cursor advances when the
+ * expected note is heard, and a wrong note is counted without skipping ahead so
+ * you can correct it.
+ *
+ * No clock. A slow player is not punished and a stopped player is not advanced
+ * past — the rule the whole app now runs on.
  */
 
-/**
- * Text only, no emoji. The colour already carries the verdict, and a bare 🎯
- * renders as a tofu box on any system without a colour emoji font — the same
- * reason the app mark is drawn as SVG rather than set as 🎸.
- */
-const FEEDBACK: Record<SniperHitResult, { text: string; modifier: string }> = {
-  hit: { text: 'Hit!', modifier: 'verdict--hit' },
-  wrong_string: { text: 'Wrong string', modifier: 'verdict--wrong' },
-  off_pitch: { text: 'Right string, off pitch', modifier: 'verdict--off' },
-  no_signal: { text: 'Listening…', modifier: 'verdict--idle' },
-};
+/** Riffs are the progressions made entirely of single notes. */
+const RIFFS: readonly ChordProgression[] = PROGRESSIONS.filter(
+  (progression) =>
+    !progression.tuning && progression.chords.every((step) => step.mode === 'riff'),
+);
 
 export interface StringSniperPanelProps {
-  /** Present when the drill should file what it hears. */
   user?: { uid: string };
-  /** A `picking.single.*` skill handed over by Today's Session. */
+  /** A `picking.*` skill handed over by Today's Session. */
   requestedSkillId?: string | null;
   onRequestHandled?: () => void;
 }
-
-/** Which string a scheduled picking skill is about. */
-const STRING_FOR_SKILL: Record<string, GuitarStringIndex> = {
-  'picking.single.1st-string.bare': 1,
-  'picking.single.3rd-string': 3,
-  'picking.single.4th-string': 4,
-  'picking.single.5th-string': 5,
-};
 
 export function StringSniperPanel({
   user,
   requestedSkillId = null,
   onRequestHandled,
 }: StringSniperPanelProps = {}) {
-  const {
-    isRunning,
-    isStarting,
-    currentConfig,
-    lastResult,
-    lastDetected,
-    error,
-    errorCode,
-    start,
-    stop,
-  } =
-    useStringSniper();
-
   const { states } = useSkillStates(user?.uid ?? '');
+  const {
+    currentNote,
+    error: micError,
+    errorCode,
+    isStarting,
+    start: startListening,
+    stop: stopListening,
+    reset: resetDetector,
+  } = useChordDetector();
 
-  /**
-   * Strikes in the current set.
-   *
-   * The drill judged every strike and then threw the verdict away, so the one
-   * mode that was already objectively scored contributed nothing to the
-   * schedule. A set of eight now becomes a grade.
-   */
-  const [strikes, setStrikes] = useState<SniperHitResult[]>([]);
-  const [setGrade, setSetGrade] = useState<string | null>(null);
-  const lastCountedRef = useRef<SniperHitResult | null>(null);
+  const [riffId, setRiffId] = useState<string>(() => RIFFS[0]?.id ?? '');
+  const [drill, setDrill] = useState<RiffDrillState | null>(null);
+  const [grade, setGrade] = useState<string | null>(null);
 
-  const [targetString, setTargetString] = useState<GuitarStringIndex>(6);
-  const [presetId, setPresetId] = useState<string>('open');
+  const stateById = useMemo(
+    () => new Map(states.map((state) => [state.skillId, state])),
+    [states],
+  );
 
-  const preset: FretPreset = FRET_PRESETS.find((p) => p.id === presetId) ?? FRET_PRESETS[0]!;
+  const riff = RIFFS.find((option) => option.id === riffId) ?? RIFFS[0];
 
-  const draftConfig: StringSniperConfig = {
-    targetString,
-    allowedFrets: preset.range,
-  };
+  /** Every note of the riff, flattened — the drill is one run, not four bars. */
+  const notes = useMemo(
+    () => riff?.chords.flatMap((step) => step.notes ?? []) ?? [],
+    [riff],
+  );
+  const positions = useMemo(() => riffPositions(notes), [notes]);
 
-  const activeConfig = currentConfig ?? draftConfig;
-  const ambiguous = overlappingStrings(activeConfig);
-  const skillId = sniperSkillId(activeConfig);
-
-  // Arriving from Today's Session: set the string up rather than asking again.
+  // A riff handed over by Today's Session: pick the one that drills that skill.
   useEffect(() => {
     if (!requestedSkillId) return;
-    const string = STRING_FOR_SKILL[requestedSkillId];
-    if (string) setTargetString(string);
+
+    const match = RIFFS.find((option) => option.practisesSkillIds?.includes(requestedSkillId));
+    if (match) setRiffId(match.id);
     onRequestHandled?.();
   }, [requestedSkillId, onRequestHandled]);
 
-  const fileSet = useCallback(
-    (results: SniperHitResult[]) => {
-      const summary = summariseStrikes(results);
-      const grade = gradeSniperSet(summary);
-      setSetGrade(grade);
+  const skillId = riff?.practisesSkillIds?.[0] ?? (riff ? progressionSkillId(riff.id) : null);
 
-      if (!grade || !user || !skillId) return;
+  const file = useCallback(
+    (state: RiffDrillState) => {
+      const summary = summariseRiff(state);
+      const result = gradeRiff(summary);
+      setGrade(result);
 
-      // Not awaited: the local cache — and so the schedule on screen — updates
-      // immediately, and offline this promise would never settle.
+      if (!result || !user || !skillId) return;
+
+      // Not awaited: the local cache updates the schedule on screen at once.
       void upsertSkillPracticeState(user.uid, {
         skillId,
-        result: grade,
-        current: states.find((state) => state.skillId === skillId) ?? null,
+        result,
+        current: stateById.get(skillId) ?? null,
       }).catch((error: unknown) => {
-        console.error('[sniper] Set did not reach the server.', error);
+        console.error('[sniper] Riff did not reach the server.', error);
       });
     },
-    [skillId, states, user],
+    [skillId, stateById, user],
   );
 
-  // One strike per *change* of verdict: the detector reports the same result on
-  // every frame while a note rings, and counting frames would score a single
-  // sustained note as a full set.
+  // Feed what is heard into the drill. The detector reports a ringing note on
+  // every frame, and `hearNote` counts only changes.
   useEffect(() => {
-    if (!isRunning || !lastResult || lastResult === 'no_signal') {
-      if (lastResult === 'no_signal') lastCountedRef.current = null;
-      return;
+    if (!drill || isRiffComplete(drill)) return;
+
+    const next = hearNote(drill, currentNote);
+    if (next === drill) return;
+
+    setDrill(next);
+    if (isRiffComplete(next)) {
+      stopListening();
+      file(next);
     }
+  }, [currentNote, drill, file, stopListening]);
 
-    if (lastCountedRef.current === lastResult) return;
-    lastCountedRef.current = lastResult;
+  useEffect(() => stopListening, [stopListening]);
 
-    setStrikes((previous) => {
-      if (previous.length >= STRIKES_PER_SET) return previous;
-      const next = [...previous, lastResult];
-      if (next.length === STRIKES_PER_SET) fileSet(next);
-      return next;
-    });
-  }, [lastResult, isRunning, fileSet]);
+  const begin = useCallback(async () => {
+    setGrade(null);
+    resetDetector();
+    if (!(await startListening())) return;
+    setDrill(startRiff(notes));
+  }, [notes, resetDetector, startListening]);
 
-  const verdict = FEEDBACK[lastResult ?? 'no_signal'];
+  const summary = drill ? summariseRiff(drill) : null;
+  const waitingFor = drill ? expectedNote(drill) : null;
+  const cursor = drill?.cursor ?? 0;
 
   return (
     <section className="card">
       <div className="card__header">
-        <span className="pill">beta</span>
+        <span className="pill">{RIFFS.length} riffs</span>
       </div>
 
       <p className="card__body">
-        Pick one string without looking. The drill listens and tells you whether the note you
-        produced belongs on your target.
+        Pick the notes in order. It listens for each one and moves on when it hears it — no
+        clock, so take as long as you like over the awkward jumps.
       </p>
 
       {errorCode ? (
-        <MicNotice
-          code={errorCode}
-          detail={error}
-          onRetry={() => void start(draftConfig)}
-        />
+        <MicNotice code={errorCode} detail={micError} onRetry={() => void begin()} />
       ) : null}
 
-      {!isRunning ? (
+      {!drill ? (
         <>
-          <fieldset className="field">
-            <legend className="field__label">Target string</legend>
-            <div className="segmented">
-              {ALL_STRINGS.map((string) => (
-                <button
-                  key={string}
-                  type="button"
-                  className={`segmented__option${string === targetString ? ' segmented__option--active' : ''}`}
-                  onClick={() => setTargetString(string)}
-                  aria-pressed={string === targetString}
-                >
-                  <span className="segmented__index">{string}</span>
-                  <span className="segmented__name">{STRING_LABELS[string]}</span>
-                </button>
+          <label className="field" htmlFor="riff-select">
+            <span className="field__label">Riff</span>
+            <select
+              id="riff-select"
+              className="select"
+              value={riff?.id ?? ''}
+              onChange={(event) => setRiffId(event.target.value)}
+            >
+              {RIFFS.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {stateById.has(progressionSkillId(option.id)) ? '✓ ' : ''}
+                  {option.title}
+                </option>
               ))}
-            </div>
-          </fieldset>
+            </select>
+          </label>
 
-          <fieldset className="field">
-            <legend className="field__label">Frets</legend>
-            <div className="segmented segmented--wrap">
-              {FRET_PRESETS.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  className={`segmented__option${option.id === presetId ? ' segmented__option--active' : ''}`}
-                  onClick={() => setPresetId(option.id)}
-                  aria-pressed={option.id === presetId}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </fieldset>
+          {riff?.teaches ? <p className="card__hint">{riff.teaches}</p> : null}
+
+          <ol className="riffline" data-testid="riff-preview">
+            {positions.map((position, index) => (
+              <li key={`${position}-${index}`} className="riffline__note">
+                {position}
+              </li>
+            ))}
+          </ol>
 
           <p className="card__hint">
-            Target: {describeConfig(draftConfig)} — aim for {targetNoteLabel(draftConfig)}.
+            Written <strong>string:fret</strong> — 6 is the thickest string, 0 means open.
           </p>
-
-          {ambiguous.length > 0 ? (
-            <p className="notice notice--muted">
-              Heads up: that note is also reachable on{' '}
-              {ambiguous.length === 1
-                ? `string ${ambiguous[0]}`
-                : `strings ${ambiguous.slice(0, -1).join(', ')} and ${ambiguous.at(-1)}`}
-              . A microphone hears pitch, not which string you plucked, so this setting checks the
-              note rather than your aim.
-            </p>
-          ) : null}
 
           <button
             type="button"
             className="button button--primary"
-            onClick={() => void start(draftConfig)}
-            disabled={isStarting}
+            onClick={() => void begin()}
+            disabled={isStarting || notes.length === 0}
           >
-            {isStarting ? 'Waiting for microphone…' : 'Start drill'}
+            {isStarting ? 'Waiting for microphone…' : 'Start the riff'}
           </button>
         </>
       ) : (
         <>
-          <p className="card__hint">
-            Target: {describeConfig(activeConfig)} — aim for {targetNoteLabel(activeConfig)}.
+          <ol className="riffline" data-testid="riff-progress">
+            {positions.map((position, index) => (
+              <li
+                key={`${position}-${index}`}
+                className={`riffline__note${
+                  index < cursor
+                    ? ' riffline__note--done'
+                    : index === cursor
+                      ? ' riffline__note--now'
+                      : ''
+                }`}
+              >
+                {position}
+              </li>
+            ))}
+          </ol>
+
+          <div
+            className={`verdict ${currentNote ? 'verdict--hit' : 'verdict--idle'}`}
+            role="status"
+            data-testid="sniper-hearing"
+          >
+            {isRiffComplete(drill)
+              ? 'Done.'
+              : currentNote
+                ? `Hearing ${currentNote}`
+                : 'Listening…'}
+          </div>
+
+          <p className="card__hint" data-testid="sniper-next">
+            {isRiffComplete(drill)
+              ? `${summary?.played} of ${summary?.total} in order, ${summary?.wrong} stray note${summary?.wrong === 1 ? '' : 's'}.`
+              : `Next: ${positions[cursor] ?? ''}${waitingFor ? ` (${waitingFor})` : ''}`}
           </p>
 
-          <div className={`verdict ${verdict.modifier}`} role="status">
-            {verdict.text}
-          </div>
-
-          <div className="strikes" data-testid="strikes">
-            {Array.from({ length: STRIKES_PER_SET }, (_, index) => {
-              const strike = strikes[index];
-              return (
-                <span
-                  key={index}
-                  className={`strikes__pip${strike ? ` strikes__pip--${strike === 'hit' ? 'hit' : 'miss'}` : ''}`}
-                  aria-hidden="true"
-                />
-              );
-            })}
-            <span className="strikes__count">
-              {strikes.length}/{STRIKES_PER_SET}
-            </span>
-          </div>
-
-          {setGrade ? (
+          {grade ? (
             <p className="notice notice--ok" data-testid="sniper-grade">
-              Set of {STRIKES_PER_SET}: {summariseStrikes(strikes).hits} clean — filed as{' '}
-              <strong>{setGrade}</strong>.
-              <button
-                type="button"
-                className="task__link"
-                onClick={() => {
-                  setStrikes([]);
-                  setSetGrade(null);
-                  lastCountedRef.current = null;
-                }}
-              >
-                Another set →
-              </button>
+              Filed as <strong>{grade}</strong>.
             </p>
           ) : null}
 
-          <dl className="datalist">
-            <div className="datalist__row">
-              <dt>Detected</dt>
-              <dd>
-                {lastDetected.noteName && lastDetected.frequency !== null
-                  ? `${lastDetected.noteName} (${lastDetected.frequency.toFixed(1)} Hz)`
-                  : '—'}
-              </dd>
-            </div>
-            <div className="datalist__row">
-              <dt>From target</dt>
-              <dd>
-                {lastDetected.cents === null
-                  ? '—'
-                  : `${lastDetected.cents > 0 ? '+' : ''}${lastDetected.cents} cents`}
-              </dd>
-            </div>
-            <div className="datalist__row">
-              <dt>Clarity</dt>
-              <dd>{lastDetected.clarity === null ? '—' : lastDetected.clarity.toFixed(2)}</dd>
-            </div>
-          </dl>
-
-          <button type="button" className="button button--ghost" onClick={stop}>
-            Stop drill
-          </button>
+          <div className="task__grades">
+            <button type="button" className="button button--primary" onClick={() => void begin()}>
+              {isRiffComplete(drill) ? 'Again' : 'Restart'}
+            </button>
+            <button
+              type="button"
+              className="button button--ghost"
+              onClick={() => {
+                stopListening();
+                setDrill(null);
+                setGrade(null);
+              }}
+            >
+              Choose another
+            </button>
+          </div>
         </>
       )}
     </section>

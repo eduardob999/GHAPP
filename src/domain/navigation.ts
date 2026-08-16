@@ -99,7 +99,7 @@ export const NAV_ROOT: NavNode = {
         {
           id: 'train.sniper',
           title: 'String Sniper',
-          blurb: 'Picking-hand accuracy, one string at a time.',
+          blurb: 'Riffs, note by note. Picking accuracy on real music.',
           screen: 'sniper',
           needsMicrophone: true,
         },
