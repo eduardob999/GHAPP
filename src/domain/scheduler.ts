@@ -73,7 +73,28 @@ export const DEFAULT_EASE = 2.5;
 const MIN_EASE = 1.3;
 const MAX_EASE = 3.5;
 
-/** A failure comes back in about two and a half hours, i.e. later today. */
+/**
+ * A failure comes back in about two and a half hours, i.e. later today.
+ *
+ * **Applied, not merely clamped to.** This constant used to be only the lower
+ * bound of the clamp at the end of `scheduleNext`, and FSRS's post-lapse
+ * stability sits comfortably above it for anything you actually know — so the
+ * comment above described behaviour the code did not have:
+ *
+ *     shaky   (stability 2)   due every  2d -> after a fail, next in 1.03d
+ *     solid   (stability 8)   due every  8d -> after a fail, next in 2.53d
+ *     known   (stability 20)  due every 20d -> after a fail, next in 4.14d
+ *     yours   (stability 60)  due every 60d -> after a fail, next in 6.95d
+ *
+ * Fumbling a chord you have known for two months put it a week away. For a
+ * practice companion that is backwards: a lapse is the one signal that the
+ * shape is not in your hands, and the response to it should be to pick the
+ * guitar back up today.
+ *
+ * FSRS supplies the *stability*, which is what the next successful rep is
+ * scheduled from and which is still stored unchanged. The relearning step is
+ * what happens in between — the same split every spaced-repetition tool makes.
+ */
 const FAIL_INTERVAL_DAYS = 0.1;
 
 const MAX_INTERVAL_DAYS = 180;
@@ -121,7 +142,9 @@ export function scheduleNext(
     ...(weights ? ([weights] as const) : ([] as const)),
   );
 
-  let intervalDays = update.intervalDays;
+  // A lapse goes to the relearning step rather than to whatever FSRS makes of
+  // the rebuilt stability. See FAIL_INTERVAL_DAYS above.
+  let intervalDays = result === 'fail' ? FAIL_INTERVAL_DAYS : update.intervalDays;
 
   // Same-sitting repeat: allow the interval to fall but not to climb. Playing
   // something twice in one sitting is massed practice, and FSRS — which assumes
