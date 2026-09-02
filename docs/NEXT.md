@@ -202,6 +202,25 @@ should be a tree of menus with one automatic mode at the root.
       highest string number, which is only leftmost on a right-handed chart —
       mirrored it had negative width and vanished.
 
+## Next
+
+- [ ] **16. Does a failed rep really belong four days away?** `FAIL_INTERVAL_DAYS
+      = 0.1` in [src/domain/scheduler.ts](../src/domain/scheduler.ts) is named
+      and commented as "a failure comes back in about two and a half hours, i.e.
+      later today". It is not that. It is the lower clamp applied to *every*
+      grade, and the lapse interval that FSRS produces sits far above it for
+      anything actually practised. Measured on 2026-09-02: a failed rep returns
+      in 0.84 days at stability 1, 2.71 at stability 10 and 4.56 at stability 30.
+      The floor only binds below about stability 0.05, which no practised skill
+      reaches.
+      So either the comment is wrong and should be corrected, or the intent is
+      right and the code never implemented it. For a practice app the intent
+      reads better: failing a chord and not seeing it again until Saturday is not
+      how anyone learns a chord. But this changes the schedule for every stored
+      skill, so it is a decision rather than a fix.
+      `scheduler.test.ts` records the present behaviour, so whichever way it
+      goes, the change will be visible rather than silent.
+
 ## Ground rules
 
 - Never touch `.github/workflows/deploy.yml`.

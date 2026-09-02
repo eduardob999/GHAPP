@@ -11,6 +11,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "icons": "node scripts/generate-icons.mjs",
     "ship": "node scripts/ship.mjs"
   },
@@ -27,6 +29,7 @@
     "@vitejs/plugin-react": "^6.0.5",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
-    "vite": "^8.2.1"
+    "vite": "^8.2.1",
+    "vitest": "^4.1.11"
   }
 }

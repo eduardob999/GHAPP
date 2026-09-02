@@ -27,18 +27,23 @@ there. See below.
 ```bash
 npm run dev        # generates src/firebaseConfig.ts first; serves the worklet on demand
 npm run typecheck  # tsc --noEmit under strict + noUncheckedIndexedAccess + exactOptionalPropertyTypes
+npm test           # vitest run: the scheduler and the FSRS model, 41 tests
 npm run build      # typecheck, then vite build, the worklet bundle, and the SW manifest
 npm run ship       # build, push, watch the deploy, then fetch the live page and prove it
 npm run icons      # regenerate public/icons from the source art
 ```
 
-**There are no tests.** No test script, no runner, no `.test.ts` anywhere. The
-type checker is the only automated check, and it only proves the code compiles.
-This is the single largest difference from kanji-app, where `src/domain/` has a
-test file beside every module and 296 tests run in three seconds. Do not assume a
-scheduler, grading or detection change is covered by anything. If you change
-domain logic, say plainly in the report that it was verified by hand or not at
-all.
+**The scheduler has tests; nothing else does.** `npm test` runs vitest over
+`src/domain/*.test.ts`. As of 2026-09-02 that is 41 tests across `fsrs.ts` and
+`scheduler.ts`, which is where a silent change does the most damage: they decide
+when every skill comes back.
+
+Everything else is still uncovered, and that includes all of the audio path,
+`autoSession.ts`, `sessionPlanner.ts` and the grading modules. kanji-app has a
+test file beside every module in `src/domain/` and 296 tests. **Do not assume a
+grading or detection change is covered by anything.** If you change domain logic
+outside the scheduler, say plainly in the report that it was verified by hand or
+not at all.
 
 `npm run build` is fast (about 400 ms after install). It warns that the bundle
 is over 500 kB; that is Firebase, and it is known rather than new.
