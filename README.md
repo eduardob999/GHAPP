@@ -7,7 +7,7 @@ Live at **<https://eduardob999.github.io/GHAPP/>** once Pages is enabled — see
 below.
 
 What works today: Google sign-in, Firestore synced across devices and offline, a
-spaced-practice scheduler over 41 micro-skills, a tuner, the String Sniper
+spaced-practice scheduler over 56 micro-skills, a tuner, the String Sniper
 picking drill, and a fretting-shape trainer with chord diagrams. See
 [docs/ROADMAP.md](docs/ROADMAP.md) for what is next.
 
