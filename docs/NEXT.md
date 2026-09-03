@@ -221,6 +221,18 @@ should be a tree of menus with one automatic mode at the root.
       `scheduler.test.ts` records the present behaviour, so whichever way it
       goes, the change will be visible rather than silent.
 
+- [ ] **16a. A perfectly played riff cannot score 1.00 if its own notes
+      repeat.** Consecutive repeats are collapsed on the HEARD side only. The
+      comment explains why that is right for the detector, "the detector reports
+      the same note on every frame while it rings, and that is not a repeated
+      note", but the same filter is not applied to `expectedSeq`. So for a riff
+      written with a genuine repeat, `['E2','E2','G2','A2']`,
+      `['G2','E2','E2','E2']`, `['D2','D2','F2','G2']`, `['B3','G3','E3','E3']`,
+      a player who plays it perfectly has both attacks collapsed into one and
+      the order ratio tops out at **0.75**. It still grades as a hit, so this
+      costs feedback rather than a grade, but the app tells him he was 75%
+      right when he was perfect. Found 2026-09-03, pinned in
+      `progressions.test.ts`.
 - [ ] **16b. The warm-up comment in `planStructuredSession` reads backwards.**
       It says "when there is not enough history to have a comfortable skill, the
       warm-up simply takes the easiest of what is planned." On day one every
@@ -230,6 +242,14 @@ should be a tree of menus with one automatic mode at the root.
       the warm-up gets `easy-b` and `middling`. The behaviour is defensible,
       since ending well is the stated priority, but the sentence describes the
       opposite. Correct the comment.
+- [ ] **16c. Two stale or wrong docstrings around riff scoring.** The
+      `RiffScore` docstring still describes the pre-LCS behaviour, "Coverage,
+      not order", while the function below it computes an order ratio and gates
+      `hit` on it, and `longestCommonSubsequence`'s own docstring says the
+      opposite. Separately, `timingVerdict(NaN)` returns `'on-time'` rather than
+      `'none'`, because `NaN < -70` and `NaN > 70` are both false. The grading
+      outcome is safe, since both leave a hit intact, but it would display as
+      "on time" when there was no onset at all.
 - [ ] **17. One frame separates "we did not hear you" from "you played it
       wrong".** `earGrading.ts` says in its own header that it "deliberately does
       *not* punish silence", and at one exact share it does. `MIN_HEARD_SHARE`

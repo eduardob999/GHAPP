@@ -33,17 +33,25 @@ npm run ship       # build, push, watch the deploy, then fetch the live page and
 npm run icons      # regenerate public/icons from the source art
 ```
 
-**The scheduler has tests; nothing else does.** `npm test` runs vitest over
-`src/domain/*.test.ts`. As of 2026-09-02 that is 41 tests across `fsrs.ts` and
-`scheduler.ts`, which is where a silent change does the most damage: they decide
-when every skill comes back.
+**Five domain modules have tests. The audio path has none.** `npm test` runs
+vitest over `src/domain/*.test.ts`: **199 tests as of 2026-09-03**, covering
+`fsrs.ts`, `scheduler.ts`, `sessionPlanner.ts`, `earGrading.ts` and the grading
+logic in `progressions.ts`.
 
-Everything else is still uncovered, and that includes all of the audio path,
-`autoSession.ts`, `sessionPlanner.ts` and the grading modules. kanji-app has a
-test file beside every module in `src/domain/` and 296 tests. **Do not assume a
-grading or detection change is covered by anything.** If you change domain logic
-outside the scheduler, say plainly in the report that it was verified by hand or
-not at all.
+Those are the places where a silent change does the most damage: they decide
+when a skill comes back, what a session looks like, and whether a rep counted.
+The timing rule in particular is pinned from seven directions and was checked by
+deliberately breaking `applyTiming` to confirm the tests fail.
+
+**Still uncovered:** everything under `src/audio/`, `autoSession.ts`,
+`shapeTrainer.ts`, `stringSniper.ts`, `riffDrill.ts`, `companion.ts`, and all of
+the catalog content. kanji-app has a test file beside every module in
+`src/domain/` and 296 tests, so this is closer to that than it was, and not
+there. **Do not assume an audio or detection change is covered by anything.**
+
+This paragraph has been wrong before: it said "41 tests, nothing else does" for
+several hours after that stopped being true. If you add tests, edit this line in
+the same commit.
 
 `npm run build` is fast (about 400 ms after install). It warns that the bundle
 is over 500 kB; that is Firebase, and it is known rather than new.
