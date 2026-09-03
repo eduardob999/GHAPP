@@ -108,19 +108,45 @@ describe('pitchClassOf', () => {
     // played and then grade them against it.
     expect(pitchClassOf('H')).toBeNull();
     expect(pitchClassOf('')).toBeNull();
-    expect(pitchClassOf('e2')).toBeNull();
     expect(pitchClassOf('C##')).toBeNull();
     expect(pitchClassOf('E2 G2')).toBeNull();
   });
 
-  it('returns null for the two enharmonic spellings the table does not carry', () => {
-    // NOTE, a finding rather than a preference: `Cb` and `E#` are legal note
-    // names and parse as shape, but PITCH_CLASSES has no entry for either, so
-    // they come back null. Nothing in the catalog spells a note that way today.
-    expect(pitchClassOf('Cb')).toBeNull();
-    expect(pitchClassOf('E#')).toBeNull();
-    expect(pitchClassOf('Fb')).toBeNull();
-    expect(pitchClassOf('B#')).toBeNull();
+  it('reads the four spellings that cross a letter boundary, which it used to reject', () => {
+    // THE DEFECT, docs/NEXT.md 16e: `Cb`, `E#`, `Fb` and `B#` are legal note
+    // names, they always parsed as a note *shape*, and the old lookup table
+    // simply had no row for any of them, so all four came back null. That was
+    // recorded here as a FINDING and is now fixed. It mattered because null
+    // used to compare equal to null, so an expected note spelled this way was
+    // satisfied by any other string that also failed to parse.
+    expect(pitchClassOf('Cb')).toBe(11);
+    expect(pitchClassOf('E#')).toBe(5);
+    expect(pitchClassOf('Fb')).toBe(4);
+    expect(pitchClassOf('B#')).toBe(0);
+
+    expect(pitchClassOf('Cb')).toBe(pitchClassOf('B'));
+    expect(pitchClassOf('E#')).toBe(pitchClassOf('F'));
+    expect(pitchClassOf('Fb')).toBe(pitchClassOf('E'));
+    expect(pitchClassOf('B#')).toBe(pitchClassOf('C'));
+  });
+
+  it('gives Cb4 and B3 the same class, because it discards the octave entirely', () => {
+    // Cb4 and B3 are one pitch. Nothing that compares pitch classes has to
+    // know that, since the octave is thrown away here either way. The octave
+    // borrow those two spellings carry is real, and it is visible only in
+    // `transposeNote`, where tunings.test.ts pins it.
+    expect(pitchClassOf('Cb4')).toBe(pitchClassOf('B3'));
+    expect(pitchClassOf('B#3')).toBe(pitchClassOf('C4'));
+  });
+
+  it('rejects a lowercase name on purpose, so a catalog typo cannot pass as a note', () => {
+    // A DECISION, not an oversight. No human types a note name into this app:
+    // an expected note is authored catalog data and a heard note is built by
+    // `frequencyToNote` from a fixed uppercase table. So `e2` is a typo in the
+    // catalog, and refusing it is what makes the typo visible now that an
+    // unparseable expectation no longer matches anything.
+    expect(pitchClassOf('e2')).toBeNull();
+    expect(pitchClassOf('bb2')).toBeNull();
   });
 });
 

@@ -195,12 +195,12 @@ describe('hearNote — known defect 16d: a genuine consecutive repeat can stall 
   });
 });
 
-describe('hearNote — pitchClassOf on the spellings the sibling modules also stumble on', () => {
-  // A sibling `pitchClassOf` in progressions.ts is proven (progressions.test.ts)
-  // to return null for Cb, E#, Fb and B#, spellings whose lookup table has no
-  // entry even though they parse as a note shape. riffDrill.ts carries its own
-  // private copy of the same idea and is not exported, so it is exercised here
-  // through hearNote rather than called directly.
+describe('hearNote — the enharmonic spellings and the null-equality defect, docs/NEXT.md 16e', () => {
+  // These four spellings used to be unparseable, and riffDrill.ts used to carry
+  // a private second copy of the parser to be unable to read them with. Both
+  // are gone: there is one parser, in tunings.ts, and it knows all four. Still
+  // driven through hearNote rather than called directly, because hearNote is
+  // the comparison that the defect actually lived in.
   const CASES: ReadonlyArray<{ note: string; realEquivalent: string }> = [
     { note: 'Cb2', realEquivalent: 'B2' },
     { note: 'E#2', realEquivalent: 'F2' },
@@ -209,37 +209,82 @@ describe('hearNote — pitchClassOf on the spellings the sibling modules also st
   ];
 
   for (const { note, realEquivalent } of CASES) {
-    it(`treats "${note}" as unparseable rather than as its enharmonic equivalent "${realEquivalent}"`, () => {
+    it(`WAS THE DEFECT: "${note}" now matches its enharmonic equivalent "${realEquivalent}"`, () => {
+      // The old assertion here was the opposite, `cursor` 0 and `wrong` 1,
+      // recorded as a finding: the lookup table had no row for any of these, so
+      // a legal note name was unreadable and the real note that sounds it was
+      // graded as a mistake.
       const state = startRiff([note]);
 
       const real = hearNote(state, realEquivalent);
-      expect(real.cursor, `${note} should not match ${realEquivalent}`).toBe(0);
-      expect(real.wrong).toBe(1);
+      expect(real.cursor, `${note} should match ${realEquivalent}`).toBe(1);
+      expect(real.wrong).toBe(0);
     });
   }
 
-  it('FINDING: two different unparseable notes compare equal to each other, both being null', () => {
-    // pitchClassOf returns null for anything it cannot parse, and hearNote
-    // compares with `pitchClassOf(heard) === pitchClassOf(expected)`. Two
-    // strings that both fail to parse both come back null, and null === null,
-    // so an expected note the module cannot spell is satisfied by ANY other
-    // unparseable string, not only by the note actually fingered. Recorded as
-    // the code behaves; not a defect this file is asked to fix.
-    const state = startRiff(['Cb2']);
+  it('WAS THE DEFECT: two different unparseable notes no longer compare equal as null', () => {
+    // The old assertion here was `cursor` 1 and `wrong` 0, recorded as a
+    // FINDING and left unfixed. hearNote compared `pitchClassOf(heard) ===
+    // pitchClassOf(expected)`, both sides came back null for anything it could
+    // not read, and null === null, so an expected note the module could not
+    // spell was satisfied by ANY other unparseable string rather than by the
+    // note actually fingered. It failed in the dangerous direction, silently
+    // accepting a wrong answer.
+    //
+    // `samePitchClass` is false whenever either side fails to parse, so the
+    // drill now counts this as the wrong note it is.
+    const state = startRiff(['H2']);
     const matched = hearNote(state, 'not-a-note-at-all');
 
-    expect(matched.cursor).toBe(1);
-    expect(matched.wrong).toBe(0);
+    expect(matched.cursor).toBe(0);
+    expect(matched.wrong).toBe(1);
   });
 
-  it('is case-sensitive: a lowercase letter fails to parse and falls into the same null trap', () => {
-    const state = startRiff(['e2']);
-    const matched = hearNote(state, 'still-not-a-note');
+  it('WAS THE DEFECT: an unparseable expectation is not satisfied by a real note either', () => {
+    const state = startRiff(['H2']);
 
-    // 'e2' does not match the [A-G] class the regex requires, so it is also
-    // unparseable, and the same null === null quirk applies to it.
-    expect(matched.cursor).toBe(1);
-    expect(matched.wrong).toBe(0);
+    expect(hearNote(state, 'E2').cursor).toBe(0);
+    expect(hearNote(state, 'E2').wrong).toBe(1);
+  });
+
+  it('an unparseable heard note is a wrong note, never a match', () => {
+    const state = startRiff(['E2']);
+    const junk = hearNote(state, 'not-a-note-at-all');
+
+    expect(junk.cursor).toBe(0);
+    expect(junk.wrong).toBe(1);
+  });
+
+  it('is case-sensitive on purpose, so a lowercase catalog entry fails loudly', () => {
+    // `e2` stays unparseable, which is a decision rather than a leftover: note
+    // names here are catalog data and detector output, never typing, so a
+    // lowercase one is a typo. It now shows up as a note nothing can satisfy
+    // instead of as a note everything unparseable satisfies.
+    const state = startRiff(['e2']);
+
+    expect(hearNote(state, 'E2').wrong).toBe(1);
+    expect(hearNote(state, 'still-not-a-note').wrong).toBe(1);
+    expect(hearNote(state, 'still-not-a-note').cursor).toBe(0);
+  });
+
+  it('WAS A DISAGREEMENT: junk that merely starts with a note name is not that note', () => {
+    // riffDrill's private parser matched an unanchored prefix, so "Ebanana"
+    // read as E flat and "E2 G2" read as E, while the progressions.ts copy
+    // rejected both. One anchored parser, so both are junk now.
+    const state = startRiff(['D#2']);
+    expect(hearNote(state, 'Ebanana').cursor).toBe(0);
+
+    const two = startRiff(['E2']);
+    expect(hearNote(two, 'E2 G2').cursor).toBe(0);
+    expect(hearNote(two, 'C##').cursor).toBe(0);
+  });
+
+  it('WAS A DISAGREEMENT: surrounding whitespace is trimmed rather than fatal', () => {
+    // The other half of the same split: progressions.ts trimmed and riffDrill
+    // did not, so "  G3  " was pitch class 7 in one module and null in the
+    // other. The trimming behaviour won, being the more forgiving of the two.
+    const state = startRiff(['G3']);
+    expect(hearNote(state, '  G3  ').cursor).toBe(1);
   });
 });
 

@@ -33,10 +33,10 @@ npm run ship       # build, push, watch the deploy, then fetch the live page and
 npm run icons      # regenerate public/icons from the source art
 ```
 
-**Six domain modules have tests. The audio path has none.** `npm test` runs
-vitest over `src/domain/*.test.ts`: **241 tests as of 2026-09-03**, covering
+**Seven domain modules have tests. The audio path has none.** `npm test` runs
+vitest over `src/domain/*.test.ts`: **278 tests as of 2026-09-03**, covering
 `fsrs.ts`, `scheduler.ts`, `sessionPlanner.ts`, `earGrading.ts`, the grading
-logic in `progressions.ts`, and `riffDrill.ts`.
+logic in `progressions.ts`, `riffDrill.ts`, and `tunings.ts`.
 
 Those are the places where a silent change does the most damage: they decide
 when a skill comes back, what a session looks like, and whether a rep counted.
@@ -114,6 +114,13 @@ actually loads. Use `npm run ship`. `--dry-run` says what it would do.
   barre chords. **It currently has 56 definitions, all `active: true`. The README
   still says 41.** Trust the file, and fix the README when you are next in it.
 - `src/domain/progressions.ts` and `songs.ts` are content data, not logic.
+- **`src/domain/tunings.ts` owns note-name parsing, and is the only thing that
+  does.** `parseNote`, `pitchClassOf`, `samePitchClass` and `pitchClassOfRoot`
+  all live there. Until 2026-09-03 there were three separate parsers, here and
+  in `progressions.ts` and `riffDrill.ts`, and they disagreed on six inputs. Do
+  not write a fourth. **Compare notes with `samePitchClass`, never with
+  `pitchClassOf(a) === pitchClassOf(b)`**: that form treats two unreadable names
+  as a match, which is docs/NEXT.md 16e.
 - `src/storage/` is the only layer that knows the Firestore collection layout.
   Components and hooks go through it rather than importing `db`.
 - `docs/NEXT.md` is the working queue and is kept current. `docs/ROADMAP.md` is

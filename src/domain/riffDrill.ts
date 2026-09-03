@@ -1,4 +1,5 @@
 import { fretPositionOf, formatFretPosition } from './earGrading';
+import { samePitchClass } from './tunings';
 
 /**
  * Playing a riff, note by note.
@@ -15,18 +16,6 @@ import { fretPositionOf, formatFretPosition } from './earGrading';
  * a slow player is not punished and a stopped player is not advanced past —
  * the same rule the auto session runs on.
  */
-
-/** Compared by pitch class, so an octave slip is not a wrong note. */
-function pitchClassOf(note: string): number | null {
-  const match = /^([A-G][#b]?)/.exec(note);
-  if (!match) return null;
-
-  const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  const flats: Record<string, string> = { Db: 'C#', Eb: 'D#', Gb: 'F#', Ab: 'G#', Bb: 'A#' };
-  const name = flats[match[1]!] ?? match[1]!;
-  const index = names.indexOf(name);
-  return index === -1 ? null : index;
-}
 
 export interface RiffDrillState {
   /** Notes still to play, in order. */
@@ -58,6 +47,12 @@ export function expectedNote(state: RiffDrillState): string | null {
  * A note that is still ringing reports on every frame, so only a *change* of
  * note counts — otherwise holding one note would advance the whole riff, or
  * rack up dozens of wrong notes for a single mistake.
+ *
+ * Compared by pitch class, so an octave slip is not a wrong note. Through
+ * `samePitchClass`, which is false when either side is unspellable: the old
+ * `pitchClassOf(heard) === pitchClassOf(expected)` advanced the cursor on
+ * `null === null`, so a riff note the app could not parse was satisfied by any
+ * other string it could not parse. See docs/NEXT.md 16e.
  */
 export function hearNote(state: RiffDrillState, heard: string | null): RiffDrillState {
   if (!heard) return { ...state, lastHeard: null };
@@ -66,7 +61,7 @@ export function hearNote(state: RiffDrillState, heard: string | null): RiffDrill
   const expected = expectedNote(state);
   if (!expected) return { ...state, lastHeard: heard };
 
-  const same = pitchClassOf(heard) === pitchClassOf(expected);
+  const same = samePitchClass(heard, expected);
 
   return {
     ...state,

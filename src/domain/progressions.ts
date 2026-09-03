@@ -3,6 +3,7 @@ import { SONG_PROGRESSIONS } from './songs';
 import {
   DEFAULT_TUNING,
   TUNINGS,
+  pitchClassOf,
   pitchClassOfRoot,
   soundingNote,
   soundingRoot,
@@ -940,18 +941,16 @@ export function scoreWindow(
   return { score: best, hits, observed };
 }
 
-const PITCH_CLASSES: Record<string, number> = {
-  C: 0, 'C#': 1, Db: 1, D: 2, 'D#': 3, Eb: 3, E: 4, F: 5, 'F#': 6, Gb: 6,
-  G: 7, 'G#': 8, Ab: 8, A: 9, 'A#': 10, Bb: 10, B: 11,
-};
-
-/** "A#2" or "Bb3" -> 0–11. Null for anything unparseable. */
-export function pitchClassOf(noteName: string): number | null {
-  const match = /^([A-G][#b]?)(-?\d+)?$/.exec(noteName.trim());
-  if (!match) return null;
-  const pc = PITCH_CLASSES[match[1]!];
-  return pc === undefined ? null : pc;
-}
+/**
+ * Re-exported, not defined here.
+ *
+ * This module used to carry its own note-name table and its own regex, and
+ * riffDrill.ts carried a third. The parser lives in tunings.ts now, which is
+ * where the pitch-class names and the flat aliases already were. The name stays
+ * exported from here because riff scoring is what uses it and this is where a
+ * reader of docs/NEXT.md 16e will come looking.
+ */
+export { pitchClassOf };
 
 /**
  * Grades a riff by how much of it was heard.

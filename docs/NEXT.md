@@ -276,24 +276,78 @@ should be a tree of menus with one automatic mode at the root.
 
       **`riffDrill.ts` has no test coverage at all.** Found 2026-09-03.
 
-- [ ] **16e. Two notes the app cannot parse are treated as the same note.**
-      `pitchClassOf` returns `null` for anything it does not recognise, and both
-      `riffDrill.hearNote` and `progressions.scoreDetection` compare with
-      `pitchClassOf(a) === pitchClassOf(b)`. So `null === null` is a match: an
-      expected note of `Cb2` is satisfied by heard input of literally any other
-      unrecognised string.
+- [x] **16e. Two notes the app cannot parse are treated as the same note.**
+      Found and fixed 2026-09-03. `pitchClassOf` returned `null` for anything it
+      did not recognise and `riffDrill.hearNote` compared with
+      `pitchClassOf(a) === pitchClassOf(b)`, so `null === null` was a match: an
+      expected note of `Cb2` was satisfied by heard input of literally any other
+      unrecognised string. Latent, and confirmed latent rather than assumed: the
+      catalog spells 27 note names and 12 roots and every one of them is a
+      natural or a sharp, so no live input reached the bug.
 
-      **Latent today**, and checked rather than assumed: no catalog entry uses
-      `Cb`, `E#`, `Fb` or `B#`, which are the real notes `pitchClassOf` rejects,
-      and it also rejects lowercase, so `e2` is unparseable too. It goes live the
-      day anyone writes a flat-named note into the catalog, and it fails in the
-      worst direction, by silently accepting a wrong answer rather than
-      rejecting a right one.
+      **The item understated the problem, and the wider fix is a consolidation.**
+      There were three note parsers, not one: `progressions.pitchClassOf`, a
+      private copy in `riffDrill.ts`, and `tunings.pitchClassOfRoot`. The first
+      two parse the same thing for the same purpose and **disagreed on six
+      inputs**, because riffDrill's regex was unanchored and did not trim:
+      `Ebanana` and `E2 G2` and `C##` and `C4x` and `E 2` all read as real notes
+      there and as junk in progressions, while `  G3  ` read as G in
+      progressions and as junk there. That was a live disagreement, not a latent
+      one. Both are now one parser in `tunings.ts`.
 
-      Two fixes, and the second is the real one: teach `pitchClassOf` the four
-      missing spellings, and make an unparseable expectation fail loudly instead
-      of comparing equal to another unparseable. Pinned in
-      `riffDrill.test.ts` as a FINDING test. Found 2026-09-03.
+      `pitchClassOfRoot` stays separate and is now the only other one. A root has
+      no octave, which is a real difference rather than an accident: `Ab7` is an
+      A-flat dominant seventh as a root and A-flat in octave 7 as a note name,
+      and merging the two would make `transposeRoot('E2', 2)` answer `F#` and
+      quietly drop the octave. It shares the spelling table, so the two agree on
+      every name they both accept.
+
+      What changed, in `src/domain/tunings.ts`:
+
+      - `parseNote` is the single parser. `Cb`, `E#`, `Fb` and `B#` now read, and
+        `Cb` and `B#` carry the octave borrow they imply, so `Cb4` parses as B3
+        and `B#3` as C4. Only `transposeNote` can see that; everything else
+        compares pitch classes and discards the octave anyway.
+      - **`samePitchClass` is the actual fix**, and is false whenever either side
+        fails to parse. A helper rather than a check at every call site, because
+        "every call site remembers" is how it broke.
+      - Lowercase stays rejected, **deliberately**. Note names here are authored
+        catalog data and detector output built from a fixed uppercase table, never
+        typing, so `e2` is a catalog typo. Accepting it would discard the one
+        signal that now surfaces the typo.
+
+      Proved with a differential run of the old implementations against the new
+      over all 252 real note names, four functions and eight transposition
+      amounts: zero changes to any input that resolved before, and 404 inputs
+      that were unreadable and now resolve. The catalog itself was enumerated
+      too, and every one of its names is a natural or a sharp.
+
+      `tunings.test.ts` is new and had no coverage at all before, 31 tests. The
+      FINDING tests in `riffDrill.test.ts` now assert the fixed behaviour and
+      say in their names that the old assertion was the defect. Suite is 241 to
+      278. Mutation-checked three ways: restoring the `null === null` compare
+      fails 3 tests, dropping the four spellings fails 13, and unanchoring the
+      regex fails 3.
+
+- [ ] **16f. The same flat-root blindness, one layer down in the audio code.**
+      Found 2026-09-03 while consolidating the note parsers for 16e, and left
+      alone because it sits in the untested audio path rather than in domain.
+
+      `chordPitchClassMask` in `src/audio/chordDetection.ts` finds a root with a
+      sharp-only `indexOf`, so a flat root returns a mask of `0`, and
+      `scoreDetection` then falls back to comparing root strings. A catalog root
+      of `Db` would therefore never match a detected `C#`, which are the same
+      chord.
+
+      Latent for exactly the reason 16e was: every root in the catalog is a
+      natural or a sharp, and that was enumerated rather than assumed. It goes
+      live the day someone writes a flat.
+
+      **There are also two more copies of the pitch-class name array**, in
+      `chordDetection.ts` and `audio/notes.ts`. 16e collapsed three copies in
+      `src/domain` down to one owner in `tunings.ts`; these two are the same
+      pattern across the domain and audio boundary, which is a bigger decision
+      than 16e was and needs the audio path to have tests first.
 
 - [ ] **16b. The warm-up comment in `planStructuredSession` reads backwards.**
       It says "when there is not enough history to have a comfortable skill, the
