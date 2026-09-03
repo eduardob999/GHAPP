@@ -33,10 +33,10 @@ npm run ship       # build, push, watch the deploy, then fetch the live page and
 npm run icons      # regenerate public/icons from the source art
 ```
 
-**Five domain modules have tests. The audio path has none.** `npm test` runs
-vitest over `src/domain/*.test.ts`: **207 tests as of 2026-09-03**, covering
-`fsrs.ts`, `scheduler.ts`, `sessionPlanner.ts`, `earGrading.ts` and the grading
-logic in `progressions.ts`.
+**Six domain modules have tests. The audio path has none.** `npm test` runs
+vitest over `src/domain/*.test.ts`: **241 tests as of 2026-09-03**, covering
+`fsrs.ts`, `scheduler.ts`, `sessionPlanner.ts`, `earGrading.ts`, the grading
+logic in `progressions.ts`, and `riffDrill.ts`.
 
 Those are the places where a silent change does the most damage: they decide
 when a skill comes back, what a session looks like, and whether a rep counted.
@@ -44,7 +44,7 @@ The timing rule in particular is pinned from seven directions and was checked by
 deliberately breaking `applyTiming` to confirm the tests fail.
 
 **Still uncovered:** everything under `src/audio/`, `autoSession.ts`,
-`shapeTrainer.ts`, `stringSniper.ts`, `riffDrill.ts`, `companion.ts`, and all of
+`shapeTrainer.ts`, `stringSniper.ts`, `companion.ts`, and all of
 the catalog content. kanji-app has a test file beside every module in
 `src/domain/` and 296 tests, so this is closer to that than it was, and not
 there. **Do not assume an audio or detection change is covered by anything.**

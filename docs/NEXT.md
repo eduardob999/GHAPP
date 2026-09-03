@@ -276,6 +276,25 @@ should be a tree of menus with one automatic mode at the root.
 
       **`riffDrill.ts` has no test coverage at all.** Found 2026-09-03.
 
+- [ ] **16e. Two notes the app cannot parse are treated as the same note.**
+      `pitchClassOf` returns `null` for anything it does not recognise, and both
+      `riffDrill.hearNote` and `progressions.scoreDetection` compare with
+      `pitchClassOf(a) === pitchClassOf(b)`. So `null === null` is a match: an
+      expected note of `Cb2` is satisfied by heard input of literally any other
+      unrecognised string.
+
+      **Latent today**, and checked rather than assumed: no catalog entry uses
+      `Cb`, `E#`, `Fb` or `B#`, which are the real notes `pitchClassOf` rejects,
+      and it also rejects lowercase, so `e2` is unparseable too. It goes live the
+      day anyone writes a flat-named note into the catalog, and it fails in the
+      worst direction, by silently accepting a wrong answer rather than
+      rejecting a right one.
+
+      Two fixes, and the second is the real one: teach `pitchClassOf` the four
+      missing spellings, and make an unparseable expectation fail loudly instead
+      of comparing equal to another unparseable. Pinned in
+      `riffDrill.test.ts` as a FINDING test. Found 2026-09-03.
+
 - [ ] **16b. The warm-up comment in `planStructuredSession` reads backwards.**
       It says "when there is not enough history to have a comfortable skill, the
       warm-up simply takes the easiest of what is planned." On day one every
