@@ -221,6 +221,47 @@ should be a tree of menus with one automatic mode at the root.
       `scheduler.test.ts` records the present behaviour, so whichever way it
       goes, the change will be visible rather than silent.
 
+- [ ] **16b. The warm-up comment in `planStructuredSession` reads backwards.**
+      It says "when there is not enough history to have a comfortable skill, the
+      warm-up simply takes the easiest of what is planned." On day one every
+      item scores `comfort() === -1`, so the sort is a no-op, plan order stands,
+      and the **cool-down** takes first pick. Measured on a catalog of advanced,
+      beginner, beginner, intermediate, advanced: cool-down gets `easy-a` and
+      the warm-up gets `easy-b` and `middling`. The behaviour is defensible,
+      since ending well is the stated priority, but the sentence describes the
+      opposite. Correct the comment.
+- [ ] **17. One frame separates "we did not hear you" from "you played it
+      wrong".** `earGrading.ts` says in its own header that it "deliberately does
+      *not* punish silence", and at one exact share it does. `MIN_HEARD_SHARE`
+      is 0.15 and the grade thresholds are measured against `totalFrames`, so
+      2 clean frames in 20 is `unheard` with no grade written, while **3 clean
+      frames in 20 is graded `fail`** even though every frame that carried a
+      chord carried the right one. Both sides of that edge are now pinned in
+      `earGrading.test.ts`, so whichever way it is resolved the change will be
+      visible. Found 2026-09-03.
+- [ ] **18. Two chords the mask cannot spell compare as a clean hit.**
+      `chordPitchClassMask` returns `0` for any root missing from its sharp-only
+      table, and `compareHeard` treats equal masks as a match. So
+      `compareHeard({root:'Bb'...}, {root:'Db'...})` returns `'clean'`: a
+      perfect score for the wrong chord. Unreachable today, because `noteAt`
+      only emits sharps and the detector shares the table, but it is one flat
+      spelling in a catalog entry away from mattering. A mask of 0 should be
+      treated as unknown rather than as a value.
+- [ ] **19. `describeRiffPositions` does not do what its docstring claims.**
+      The docstring says the sort "keeps a riff inside one hand position" and
+      gives `6:5 5:3 5:5 4:2` as the shape of the output. For
+      `['A2','C3','D3','E3']` the code actually returns `5:0 5:3 4:0 4:2`: the
+      sort is per note with no memory of the previous one, so it takes an open
+      string wherever one exists and spreads the riff across three positions.
+      The output is playable, but the claim is not implemented. Either implement
+      it or correct the docstring.
+- [ ] **20. Two docstrings state the wrong denominator.** `cleanFraction` and
+      `closeFraction` are documented as the "fraction of heard frames" and are
+      computed over `totalFrames`. Ten clean frames in a twenty frame window
+      whose other ten carried nothing reports 0.5, not 1.0. The thresholds are
+      calibrated against the denominator the code uses, so this is a comment to
+      fix and **not** a divisor to change.
+
 ## Ground rules
 
 - Never touch `.github/workflows/deploy.yml`.
