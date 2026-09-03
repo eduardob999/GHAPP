@@ -34,7 +34,7 @@ npm run icons      # regenerate public/icons from the source art
 ```
 
 **Five domain modules have tests. The audio path has none.** `npm test` runs
-vitest over `src/domain/*.test.ts`: **199 tests as of 2026-09-03**, covering
+vitest over `src/domain/*.test.ts`: **207 tests as of 2026-09-03**, covering
 `fsrs.ts`, `scheduler.ts`, `sessionPlanner.ts`, `earGrading.ts` and the grading
 logic in `progressions.ts`.
 

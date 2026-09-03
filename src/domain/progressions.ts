@@ -971,6 +971,47 @@ export interface RiffScore {
 }
 
 /**
+ * Note names to pitch classes: unparseable entries dropped, and a run of the
+ * same pitch class collapsed to one.
+ *
+ * The collapse is not a preference, it is the alphabet a microphone can
+ * actually write in. The detector reports the same pitch on every frame for as
+ * long as the string rings, so a sustained note arrives as dozens of frames.
+ * Worse, the panels record only the frames that carried a pitch, so the silence
+ * between two picks of the same note is discarded before this file sees
+ * anything: a note picked once and a note picked twice reach `scoreRiffWindow`
+ * as byte-identical arrays. No implementation can tell them apart, so the only
+ * decision available is which of the two the single shared value should be
+ * right for, and the player who played it correctly wins that.
+ *
+ * Applying this to the heard side alone was the defect in docs/NEXT.md 16a. A
+ * riff written with a genuine repeat, `['E2','E2','G2','A2']`, kept four notes
+ * on the expected side while a perfect performance collapsed to three on the
+ * heard side, and the order ratio topped out at 0.75 however well it was
+ * played. Collapsing both sides compares like with like.
+ *
+ * The onset detector cannot rescue the distinction either, and must not be
+ * asked to. Recovering the second attack would mean a *missing* onset dropped
+ * the order ratio back to 0.75 and a hit to a partial, which is exactly the
+ * demotion-on-a-missed-attack that CLAUDE.md forbids: attack detection is the
+ * least reliable link in the chain and a missing onset never costs a grade.
+ *
+ * Collapsing on pitch class rather than on the written name is deliberate and
+ * follows the rest of this function: `A#2` then `Bb2` is one note, and so is
+ * `E2` then `E3`, because octave errors on a low string are the detector's
+ * commonest mistake and are ignored everywhere else here.
+ *
+ * For any sequence with no two adjacent notes of the same pitch class the
+ * second filter is the identity, so nothing about a riff without repeats moves.
+ */
+function collapsedPitchClasses(notes: readonly string[]): number[] {
+  return notes
+    .map(pitchClassOf)
+    .filter((pc): pc is number => pc !== null)
+    .filter((pc, i, all) => i === 0 || pc !== all[i - 1]);
+}
+
+/**
  * Longest common subsequence length, on pitch classes.
  *
  * Coverage alone gave full marks for playing the right notes in the wrong
@@ -1017,15 +1058,9 @@ export function scoreRiffWindow(
   for (const pc of wanted) if (got.has(pc)) matched += 1;
   const coverage = matched / wanted.size;
 
-  // Sequences, with consecutive repeats collapsed: the detector reports the
-  // same note on every frame while it rings, and that is not a repeated note.
-  const expectedSeq = expected
-    .map(pitchClassOf)
-    .filter((pc): pc is number => pc !== null);
-  const heardSeq = heard
-    .map(pitchClassOf)
-    .filter((pc): pc is number => pc !== null)
-    .filter((pc, i, all) => i === 0 || pc !== all[i - 1]);
+  // Both sides reduced the same way, which is the whole of the fix for 16a.
+  const expectedSeq = collapsedPitchClasses(expected);
+  const heardSeq = collapsedPitchClasses(heard);
 
   const inOrder = longestCommonSubsequence(expectedSeq, heardSeq);
   const orderRatio = expectedSeq.length > 0 ? inOrder / expectedSeq.length : 0;

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { ChordQuality } from '../audio/chordDetection';
 import {
   ON_TIME_WINDOW_MS,
+  PROGRESSIONS,
   applyTiming,
   gradeFromSummary,
   pitchClassOf,
@@ -13,6 +14,7 @@ import {
   timingVerdict,
   type ChordScore,
   type ProgressionChord,
+  type RiffScore,
 } from './progressions';
 
 /**
@@ -450,18 +452,17 @@ describe('scoreRiffWindow: order, by longest common subsequence', () => {
     expect(withGap.orderRatio).toBeLessThan(1);
   });
 
-  it('cannot give a perfect order ratio to a riff whose own notes repeat', () => {
-    // NOTE, a finding rather than a preference: the collapse is applied to what
-    // was heard and not to what was written, and several catalog riffs are
-    // written with a consecutive repeat, "E2 E2 G2 A2" among them. A player who
-    // plays that riff perfectly has both E attacks collapsed into one, so the
-    // subsequence is three of four and the order ratio tops out at 0.75. It
-    // still grades as a hit, so this costs feedback rather than a grade.
+  it('gives a perfect order ratio to a riff whose own notes repeat', () => {
+    // Was docs/NEXT.md 16a, and the reason this test reads the opposite way to
+    // the one it replaces. The collapse used to be applied to what was heard
+    // and not to what was written, so a riff written with a consecutive
+    // repeat, "E2 E2 G2 A2", kept four notes on the expected side while a
+    // perfect performance collapsed to three, and the order ratio topped out
+    // at 0.75 however well it was played.
     const repeated = ['E2', 'E2', 'G2', 'A2'];
     const perfect = scoreRiffWindow(repeated, ringing(repeated));
 
-    expect(perfect.orderRatio).toBeLessThan(1);
-    expect(perfect.orderRatio).toBeCloseTo(0.75, 5);
+    expect(perfect.orderRatio).toBe(1);
     expect(perfect.score).toBe('hit');
   });
 
@@ -516,5 +517,228 @@ describe('scoreRiffWindow: order, by longest common subsequence', () => {
       expect(orderRatio).toBeGreaterThanOrEqual(0);
       expect(orderRatio).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+describe('scoreRiffWindow: riffs written with a repeated note', () => {
+  /**
+   * The four riffs named in docs/NEXT.md 16a, each of which capped at 0.75 for
+   * a perfect performance before the expected side was collapsed too.
+   */
+  const NAMED_IN_16A: readonly (readonly string[])[] = [
+    ['E2', 'E2', 'G2', 'A2'],
+    ['G2', 'E2', 'E2', 'E2'],
+    ['D2', 'D2', 'F2', 'G2'],
+    ['B3', 'G3', 'E3', 'E3'],
+  ];
+
+  /** Every riff step the catalog actually ships, notes only. */
+  const catalogRiffs = (): string[][] =>
+    PROGRESSIONS.flatMap((progression) =>
+      progression.chords
+        .filter((chord) => chord.mode === 'riff' && (chord.notes?.length ?? 0) > 0)
+        .map((chord) => [...(chord.notes ?? [])]),
+    );
+
+  const pitchClasses = (notes: readonly string[]): number[] =>
+    notes.map(pitchClassOf).filter((pc): pc is number => pc !== null);
+
+  const hasAdjacentRepeat = (notes: readonly string[]): boolean =>
+    pitchClasses(notes).some((pc, i, all) => i > 0 && pc === all[i - 1]);
+
+  it('scores every riff in the catalog a clean 1.00 when it is played as written', () => {
+    // The test that would have caught 16a without anyone noticing the defect
+    // first: a perfect performance of anything in the library is a perfect
+    // score. It says nothing about how many riffs there are, so it does not go
+    // stale as content is added.
+    const riffs = catalogRiffs();
+    expect(riffs.length).toBeGreaterThan(0);
+    expect(riffs.some(hasAdjacentRepeat)).toBe(true);
+
+    for (const notes of riffs) {
+      const perfect = scoreRiffWindow(notes, ringing(notes));
+      expect({ riff: notes.join(' '), order: perfect.orderRatio, score: perfect.score }).toEqual({
+        riff: notes.join(' '),
+        order: 1,
+        score: 'hit',
+      });
+    }
+  });
+
+  it('gives each of the four riffs named in 16a a perfect score, not 0.75', () => {
+    for (const notes of NAMED_IN_16A) {
+      const perfect = scoreRiffWindow(notes, ringing(notes));
+      expect(perfect.orderRatio).toBe(1);
+      expect(perfect.score).toBe('hit');
+      expect(perfect.matched).toBe(perfect.wanted);
+    }
+  });
+
+  it('is the same riff to the domain whether the repeat was picked or held', () => {
+    // The design question 16a raises, and the reason it is answered this way.
+    // Both panels record a riff with `if (latestNote.current) bucket.push(...)`,
+    // so a frame carrying no pitch is never stored: the silence between two
+    // picks of the same note is gone before this file is reached. Picking E
+    // twice and holding it once therefore arrive as the same array, and no
+    // implementation can return two different numbers for one input. The only
+    // choice available is which of the two the shared value should be correct
+    // for, and the player who played it as written wins that.
+    const asThePanelRecordsIt = (frames: readonly (string | null)[]): string[] =>
+      frames.filter((note): note is string => Boolean(note));
+
+    const pickedTwice = asThePanelRecordsIt([
+      'E2', 'E2', 'E2', null, null, 'E2', 'E2', 'E2', 'G2', 'G2', 'A2', 'A2',
+    ]);
+    const heldOnce = asThePanelRecordsIt([
+      'E2', 'E2', 'E2', 'E2', 'E2', 'E2', 'G2', 'G2', 'A2', 'A2',
+    ]);
+
+    const written = ['E2', 'E2', 'G2', 'A2'];
+    expect(scoreRiffWindow(written, pickedTwice)).toEqual(scoreRiffWindow(written, heldOnce));
+    expect(scoreRiffWindow(written, pickedTwice).orderRatio).toBe(1);
+  });
+
+  it('does not hand out a perfect order ratio to a repeated-note riff played wrong', () => {
+    // Collapsing the expected side shortens the phrase it is judged against, so
+    // it is worth proving the ratio can still fall. It can, on both shapes:
+    // "E2 E2 G2 A2" is judged as E-G-A and "G2 E2 E2 E2" as G-E.
+    expect(scoreRiffWindow(['E2', 'E2', 'G2', 'A2'], ringing(['A2', 'G2', 'E2'])).orderRatio)
+      .toBeLessThan(0.5);
+    expect(scoreRiffWindow(['G2', 'E2', 'E2', 'E2'], ringing(['E2', 'G2'])).orderRatio)
+      .toBeLessThan(1);
+    expect(scoreRiffWindow(['D2', 'D2', 'F2', 'G2'], ringing(['C2', 'C#2'])).score).toBe('miss');
+  });
+
+  it('collapses a repeat written across octaves, since octave is ignored throughout', () => {
+    // "E2 E3" is one note here for the same reason "E2 E2" is: an octave slip
+    // on a low string is the detector's commonest error and is discounted
+    // everywhere else in this function.
+    expect(scoreRiffWindow(['E2', 'E3', 'G2', 'A2'], ringing(['E2', 'G2', 'A2'])).orderRatio)
+      .toBe(1);
+    expect(scoreRiffWindow(['A#2', 'Bb2', 'D3'], ringing(['A#2', 'D3'])).orderRatio).toBe(1);
+  });
+});
+
+describe('scoreRiffWindow: the fix moves nothing for a riff without repeats', () => {
+  /**
+   * `scoreRiffWindow` exactly as it read before 16a was fixed: the collapse
+   * applied to the heard side and not to the expected one. Kept here so the
+   * claim "this changes nothing for a riff with no consecutive repeat" is
+   * checked rather than asserted.
+   */
+  const lcs = (a: readonly number[], b: readonly number[]): number => {
+    const table = Array.from({ length: a.length + 1 }, () =>
+      new Array<number>(b.length + 1).fill(0),
+    );
+    for (let i = 1; i <= a.length; i += 1) {
+      for (let j = 1; j <= b.length; j += 1) {
+        table[i]![j] =
+          a[i - 1] === b[j - 1]
+            ? table[i - 1]![j - 1]! + 1
+            : Math.max(table[i - 1]![j]!, table[i]![j - 1]!);
+      }
+    }
+    return table[a.length]![b.length]!;
+  };
+
+  const beforeTheFix = (expected: readonly string[], heard: readonly string[]): RiffScore => {
+    const wanted = new Set(
+      expected.map(pitchClassOf).filter((pc): pc is number => pc !== null),
+    );
+    const got = new Set(heard.map(pitchClassOf).filter((pc): pc is number => pc !== null));
+
+    if (wanted.size === 0) return { score: 'unclear', matched: 0, wanted: 0, orderRatio: 0 };
+    if (got.size === 0) {
+      return { score: 'unclear', matched: 0, wanted: wanted.size, orderRatio: 0 };
+    }
+
+    let matched = 0;
+    for (const pc of wanted) if (got.has(pc)) matched += 1;
+    const coverage = matched / wanted.size;
+
+    const expectedSeq = expected
+      .map(pitchClassOf)
+      .filter((pc): pc is number => pc !== null);
+    const heardSeq = heard
+      .map(pitchClassOf)
+      .filter((pc): pc is number => pc !== null)
+      .filter((pc, i, all) => i === 0 || pc !== all[i - 1]);
+
+    const inOrder = lcs(expectedSeq, heardSeq);
+    const orderRatio = expectedSeq.length > 0 ? inOrder / expectedSeq.length : 0;
+    const result = (score: ChordScore): RiffScore => ({
+      score,
+      matched,
+      wanted: wanted.size,
+      orderRatio,
+    });
+
+    if (coverage >= 0.7 && orderRatio >= 0.6) return result('hit');
+    if (coverage >= 0.34 || orderRatio >= 0.5) return result('partial');
+    return result('miss');
+  };
+
+  const pitchClasses = (notes: readonly string[]): number[] =>
+    notes.map(pitchClassOf).filter((pc): pc is number => pc !== null);
+
+  const hasAdjacentRepeat = (notes: readonly string[]): boolean =>
+    pitchClasses(notes).some((pc, i, all) => i > 0 && pc === all[i - 1]);
+
+  /** How the same riff might come out: right, wrong, and several kinds of nearly. */
+  const waysOfPlaying = (notes: readonly string[]): string[][] => [
+    ringing(notes),
+    ringing([...notes].reverse()),
+    ringing(notes.slice(1)),
+    ringing(notes.slice(0, -1)),
+    ringing([...notes, notes[0] ?? 'C3']),
+    ringing([notes[0] ?? 'C3', ...notes]),
+    ringing(['F#4', 'C#4']),
+    ringing(notes, 1),
+    ringing(notes, 25),
+    [],
+    ['not a note'],
+  ];
+
+  it('returns byte-for-byte what the old code returned, for every catalog riff without a repeat', () => {
+    const withoutRepeats = PROGRESSIONS.flatMap((progression) =>
+      progression.chords
+        .filter((chord) => chord.mode === 'riff' && (chord.notes?.length ?? 0) > 0)
+        .map((chord) => [...(chord.notes ?? [])]),
+    ).filter((notes) => !hasAdjacentRepeat(notes));
+
+    expect(withoutRepeats.length).toBeGreaterThan(0);
+
+    for (const notes of withoutRepeats) {
+      for (const played of waysOfPlaying(notes)) {
+        expect(scoreRiffWindow(notes, played)).toEqual(beforeTheFix(notes, played));
+      }
+    }
+  });
+
+  it('returns byte-for-byte what the old code returned for the hand-written cases too', () => {
+    // The riffs the rest of this file is written against, so the two describe
+    // blocks above cannot drift from the old behaviour without this failing.
+    const noRepeats: readonly (readonly string[])[] = [
+      ['A2', 'C3', 'D3', 'E3'],
+      ['F2', 'F#2', 'G2', 'G#2'],
+      ['A2', 'G3', 'A2', 'G3'],
+      ['G3', 'B3', 'E4', 'B3'],
+      ['A#2', 'D3'],
+      ['A2', 'zzz', 'C3'],
+      ['C3'],
+    ];
+
+    for (const notes of noRepeats) {
+      for (const played of waysOfPlaying(notes)) {
+        expect(scoreRiffWindow(notes, played)).toEqual(beforeTheFix(notes, played));
+      }
+    }
+  });
+
+  it('differs from the old code only where the riff repeats a note', () => {
+    // The other half of the same claim: the change is not a no-op everywhere.
+    const repeated = ['E2', 'E2', 'G2', 'A2'];
+    expect(beforeTheFix(repeated, ringing(repeated)).orderRatio).toBeCloseTo(0.75, 5);
+    expect(scoreRiffWindow(repeated, ringing(repeated)).orderRatio).toBe(1);
   });
 });

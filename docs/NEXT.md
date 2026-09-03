@@ -221,18 +221,61 @@ should be a tree of menus with one automatic mode at the root.
       `scheduler.test.ts` records the present behaviour, so whichever way it
       goes, the change will be visible rather than silent.
 
-- [ ] **16a. A perfectly played riff cannot score 1.00 if its own notes
-      repeat.** Consecutive repeats are collapsed on the HEARD side only. The
-      comment explains why that is right for the detector, "the detector reports
-      the same note on every frame while it rings, and that is not a repeated
-      note", but the same filter is not applied to `expectedSeq`. So for a riff
-      written with a genuine repeat, `['E2','E2','G2','A2']`,
+- [x] **16a. A perfectly played riff cannot score 1.00 if its own notes
+      repeat.** Consecutive repeats were collapsed on the HEARD side only, so a
+      riff written with a genuine repeat, `['E2','E2','G2','A2']`,
       `['G2','E2','E2','E2']`, `['D2','D2','F2','G2']`, `['B3','G3','E3','E3']`,
-      a player who plays it perfectly has both attacks collapsed into one and
-      the order ratio tops out at **0.75**. It still grades as a hit, so this
-      costs feedback rather than a grade, but the app tells him he was 75%
-      right when he was perfect. Found 2026-09-03, pinned in
-      `progressions.test.ts`.
+      capped at an order ratio of **0.75** for a perfect performance. Found
+      2026-09-03, fixed the same day.
+      Done: the collapse is now a shared `collapsedPitchClasses` helper applied
+      to both sides, so the two sequences are compared in the same alphabet.
+      **11 of the catalog's 44 riff steps** were affected, not the four named
+      above; `riff.string-set.3-5.skip/r4`, `['A2','A3','G3','A2']`, was capped
+      by an octave repeat rather than a literal one, because the comparison is
+      on pitch class. All 44 now score 1.00 and `hit` when played as written.
+      **The design question, answered rather than assumed.** Collapsing the
+      expected side means a player who omits the repeat, playing `E2 G2 A2`,
+      scores the same as one who plays it. That is accepted, because the two are
+      not distinguishable here and never were: both panels record a riff with
+      `if (latestNote.current) bucket.push(...)`, so a frame carrying no pitch is
+      never stored, and the silence between two picks of the same note is
+      discarded before `scoreRiffWindow` is reached. The two performances arrive
+      as the same array, so no implementation can return two numbers for them.
+      The only choice available is which of the two the shared value should be
+      correct for, and the player who played it as written wins that.
+      **The onset detector cannot rescue it, and must not be asked to.** Onsets
+      exist in the pipeline, but as bare timestamps in `useChordDetector` with no
+      pitch attached, and the note stream carries no timestamps to correlate them
+      against. Even wired up, recovering the second attack would mean a *missing*
+      onset dropped the ratio back to 0.75 and a hit to a partial, which is the
+      demotion-on-a-missed-attack CLAUDE.md forbids. Item 1's rule stands: attack
+      detection is the least reliable link and never costs a grade.
+      Pinned by 8 new tests in `progressions.test.ts` (56 to 64, suite 199 to
+      207), including two that re-run the pre-fix computation and require it to
+      agree byte for byte on every catalog riff without a repeat. Mutation
+      checked both ways: reinstating the bug fails 6 of them, and widening the
+      collapse from adjacent to global fails the 2 regression guards.
+- [ ] **16d. String Sniper can STALL on the same riffs, and this one is worse
+      than 16a was.** Found while fixing 16a, in a different file. `hearNote` in
+      `riffDrill.ts` ignores a note equal to `lastHeard`, because a ringing note
+      reports on every frame and otherwise holding one note would advance the
+      whole riff. A genuine repeat therefore only advances the cursor if a silent
+      frame lands between the two picks to reset `lastHeard` to null.
+
+      Play `['E2','E2','G2','A2']` fast enough that the string never goes quiet
+      and the drill stops on the second E2: the cursor never moves, and every
+      note after it counts as `wrong`. **The riff cannot be completed.** 16a cost
+      him feedback; this costs him the exercise.
+
+      Same root cause as 16a, opposite consequence, and it cannot be fixed the
+      same way: collapsing repeats is exactly what makes the scorer work and
+      exactly what breaks the drill, because a drill has a cursor and a score
+      does not. It probably needs the onset timestamps that `useChordDetector`
+      already keeps in `onsetsRef`, correlated against the note stream, which is
+      the wiring 16a deliberately did not build.
+
+      **`riffDrill.ts` has no test coverage at all.** Found 2026-09-03.
+
 - [ ] **16b. The warm-up comment in `planStructuredSession` reads backwards.**
       It says "when there is not enough history to have a comfortable skill, the
       warm-up simply takes the easiest of what is planned." On day one every
