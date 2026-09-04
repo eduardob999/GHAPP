@@ -26,10 +26,18 @@ export interface RiffDrillState {
   wrong: number;
   /** The last note heard, so a ringing string is not counted repeatedly. */
   lastHeard: string | null;
+  /**
+   * Timestamp of the attack the last accepted note came from, when one was
+   * supplied. This is what tells a re-picked string from a ringing one, which
+   * the note stream alone cannot: both report the same name on every frame.
+   * Null when the caller passes no onsets, and then the drill behaves exactly
+   * as it did before onsets existed. See docs/NEXT.md 16d.
+   */
+  lastOnsetAt: number | null;
 }
 
 export function startRiff(notes: readonly string[]): RiffDrillState {
-  return { notes, cursor: 0, wrong: 0, lastHeard: null };
+  return { notes, cursor: 0, wrong: 0, lastHeard: null, lastOnsetAt: null };
 }
 
 export function isRiffComplete(state: RiffDrillState): boolean {
@@ -53,13 +61,37 @@ export function expectedNote(state: RiffDrillState): string | null {
  * `pitchClassOf(heard) === pitchClassOf(expected)` advanced the cursor on
  * `null === null`, so a riff note the app could not parse was satisfied by any
  * other string it could not parse. See docs/NEXT.md 16e.
+ *
+ * **`onsetAt` is how a repeated note gets played at all** (docs/NEXT.md 16d).
+ * Ignoring an unchanged name is what stops a ringing string advancing the
+ * whole riff, and it also made `['E2','E2','G2','A2']` IMPOSSIBLE: the second
+ * E2 was swallowed, the cursor never moved off it, and every note after it
+ * counted wrong unless a silent frame happened to fall between the two picks.
+ * A riff that cannot be completed is worse than one graded badly.
+ *
+ * The note stream alone cannot tell a re-pick from a ring, because both report
+ * the same name on every frame. An attack can. So a new onset timestamp is
+ * taken as a fresh pick and bypasses the sameness check.
+ *
+ * **Optional on purpose.** Called without it, every path below behaves exactly
+ * as it did before, so the drill is never made worse by a caller that has no
+ * onsets to give. `StringSniperPanel` supplies them; the detector was already
+ * keeping them for Chord Hero.
  */
-export function hearNote(state: RiffDrillState, heard: string | null): RiffDrillState {
+export function hearNote(
+  state: RiffDrillState,
+  heard: string | null,
+  onsetAt?: number | null,
+): RiffDrillState {
   if (!heard) return { ...state, lastHeard: null };
-  if (heard === state.lastHeard) return state;
 
+  // A fresh attack, rather than the same note still sounding.
+  const repicked = onsetAt != null && onsetAt !== state.lastOnsetAt;
+  if (heard === state.lastHeard && !repicked) return state;
+
+  const nextOnsetAt = onsetAt ?? state.lastOnsetAt;
   const expected = expectedNote(state);
-  if (!expected) return { ...state, lastHeard: heard };
+  if (!expected) return { ...state, lastHeard: heard, lastOnsetAt: nextOnsetAt };
 
   const same = samePitchClass(heard, expected);
 
@@ -68,6 +100,7 @@ export function hearNote(state: RiffDrillState, heard: string | null): RiffDrill
     cursor: same ? state.cursor + 1 : state.cursor,
     wrong: same ? state.wrong : state.wrong + 1,
     lastHeard: heard,
+    lastOnsetAt: nextOnsetAt,
   };
 }
 

@@ -255,7 +255,55 @@ should be a tree of menus with one automatic mode at the root.
       agree byte for byte on every catalog riff without a repeat. Mutation
       checked both ways: reinstating the bug fails 6 of them, and widening the
       collapse from adjacent to global fails the 2 regression guards.
-- [ ] **16d. String Sniper can STALL on the same riffs, and this one is worse
+- [~] **16d. String Sniper can STALL on the same riffs, and this one is worse
+      **DOMAIN HALF DONE 2026-09-05. The wiring is NOT done, deliberately, and
+      one question to Eduardo decides whether it should be.**
+
+      `hearNote` now takes an optional `onsetAt`, and `RiffDrillState` carries
+      `lastOnsetAt`. A new attack timestamp counts as a fresh pick and bypasses
+      the sameness check, so `['E2','E2','G2','A2']` completes. Four tests,
+      including the one that matters in the other direction: twenty frames of a
+      sustained note carrying the SAME onset must not walk the cursor through a
+      riff of repeats, which is what a naive fix would break.
+
+      **Optional on purpose.** Called with no onset, every path behaves exactly
+      as before, so nothing is made worse for a caller that has no attack data.
+      339 tests green.
+
+      **WHY THE PANEL IS NOT WIRED, and this is the interesting part.** The
+      signal exists: `useChordDetector` already keeps onsets and Chord Hero
+      already reads them. But String Sniper folds the drill in a `useEffect`
+      keyed on `currentNote`, and a re-picked note produces NO observable
+      change in React:
+
+      - `setCurrentNote((previous) => (previous === label ? previous : label))`
+        deliberately does not update when the name is unchanged.
+      - Onsets go into `onsetsRef`, a ref, deliberately, because attacks arrive
+        far too often to re-render on.
+
+      So the effect cannot fire on the exact event the fix needs. Wiring it
+      means giving the hook an `onOnset` callback or an onset counter in state,
+      and restructuring the panel to fold from a callback rather than an
+      effect. That is a change to a shared hook plus React surgery in a file
+      with **no test coverage**, and the thing it depends on cannot be checked
+      here at all: whether the onset detector actually fires on a string
+      re-picked while it is still ringing. That needs a guitar and a
+      microphone.
+
+      **The question for him, which is ten seconds of his time:** does String
+      Sniper actually stall for you on a riff with a repeated note? If yes, the
+      bug is live and the wiring is worth the surgery. If the drill already
+      gets through repeats, silent frames are landing between his picks in
+      practice and this stays a latent bug with the domain half already
+      guarding it.
+
+      Not shipped blind, because shipping unverifiable UI changes into his app
+      three times running is the specific failure he asked to stop.
+
+      **The "no test coverage at all" line below is stale**: `riffDrill.test.ts`
+      exists and 16e added to it. Original entry:
+
+      - [ ] **16d. String Sniper can STALL on the same riffs, and this one is worse
       than 16a was.** Found while fixing 16a, in a different file. `hearNote` in
       `riffDrill.ts` ignores a note equal to `lastHeard`, because a ringing note
       reports on every frame and otherwise holding one note would advance the

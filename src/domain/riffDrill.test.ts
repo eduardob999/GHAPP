@@ -153,45 +153,80 @@ describe('hearNote — the normal path', () => {
   });
 });
 
-describe('hearNote — known defect 16d: a genuine consecutive repeat can stall the riff', () => {
-  // docs/NEXT.md item 16d, filed 2026-09-03. `hearNote` ignores a heard note
-  // equal to `lastHeard` so a ringing note is not counted on every frame — but
-  // that same guard cannot tell a ringing string apart from a deliberate
-  // second pick of the identical note, because both look like "heard the same
-  // name again". A riff with a real consecutive repeat therefore only advances
-  // past the repeat if a null frame lands between the two picks to clear
-  // `lastHeard` first. This is pinned as the code's actual behaviour, not as
-  // the intended one — do not "fix" this test if riffDrill.ts changes; update
-  // it only once the fix is landed and re-verify against the new behaviour.
+describe('hearNote — a genuine consecutive repeat, docs/NEXT.md 16d', () => {
+  // Was pinned here as a defect with a note saying to update it once the fix
+  // landed. It landed 2026-09-05, so this block now asserts the fixed
+  // behaviour and keeps the old one where it is still correct.
+  //
+  // The bug: ignoring a heard note equal to `lastHeard` is what stops a
+  // ringing string advancing the whole riff, and the note stream cannot tell a
+  // ring from a second pick of the same note, because both report the same
+  // name on every frame. So a riff with a real repeat could only get past it
+  // if a silent frame happened to fall between the two picks. Otherwise the
+  // riff was IMPOSSIBLE, not merely graded badly.
+  //
+  // The fix is an attack timestamp, which does carry that information.
   const RIFF = ['E2', 'E2', 'G2', 'A2'] as const;
 
-  it('stalls forever on the second note of a repeat played with no silence between the picks', () => {
+  it('completes a repeat when each pick carries its own onset', () => {
     let state = startRiff(RIFF);
-    state = hearNote(state, 'E2'); // first E2: cursor 0 -> 1
+    state = hearNote(state, 'E2', 1_000);
     expect(state.cursor).toBe(1);
 
-    state = hearNote(state, 'E2'); // second pick, string never went quiet: ignored
-    expect(state.cursor).toBe(1); // stuck — this is the defect
+    // The string never went quiet, so the name is unchanged. A new attack is
+    // what makes this a second pick rather than the first one still sounding.
+    state = hearNote(state, 'E2', 1_400);
+    expect(state.cursor).toBe(2);
 
-    state = hearNote(state, 'G2'); // still "waiting" for the second E2
-    state = hearNote(state, 'A2');
+    state = hearNote(state, 'G2', 1_800);
+    state = hearNote(state, 'A2', 2_200);
 
-    expect(state.cursor).toBe(1);
-    expect(state.wrong).toBe(2); // G2 and A2 both scored wrong against expected E2
-    expect(isRiffComplete(state)).toBe(false);
-    expect(expectedNote(state)).toBe('E2'); // the riff can never finish from here
+    expect(state.wrong).toBe(0);
+    expect(isRiffComplete(state)).toBe(true);
   });
 
-  it('completes the identical riff when one silent frame separates the repeated picks', () => {
+  it('does not advance on a note that is merely still ringing', () => {
+    // The property the sameness check exists to protect, and the one a naive
+    // fix would destroy: a sustained note reports on every frame, and every
+    // one of those frames belongs to the SAME attack. Holding one note must
+    // not walk the cursor through a riff of repeats.
+    let state = startRiff(['E2', 'E2', 'E2'] as const);
+    state = hearNote(state, 'E2', 1_000);
+    expect(state.cursor).toBe(1);
+
+    for (let frame = 0; frame < 20; frame += 1) {
+      state = hearNote(state, 'E2', 1_000);
+    }
+
+    expect(state.cursor).toBe(1);
+    expect(state.wrong).toBe(0);
+  });
+
+  it('still completes the riff when a silent frame separates the picks', () => {
+    // The path that used to be the only way through. It costs nothing to keep
+    // and it is what a caller with no onsets still relies on.
     let state = startRiff(RIFF);
     state = hearNote(state, 'E2');
-    state = hearNote(state, null); // the reset the defect depends on
-    state = hearNote(state, 'E2'); // now counted as a new, distinct hit
+    state = hearNote(state, null);
+    state = hearNote(state, 'E2');
     state = hearNote(state, 'G2');
     state = hearNote(state, 'A2');
 
     expect(state.wrong).toBe(0);
     expect(isRiffComplete(state)).toBe(true);
+  });
+
+  it('behaves exactly as it always did when the caller supplies no onsets', () => {
+    // Deliberate, and the reason `onsetAt` is optional: a caller that has no
+    // attack data is left no worse off than before rather than having the
+    // drill changed underneath it. The stall is still reachable this way, and
+    // it is the panel's job to supply onsets so it is not reached in the app.
+    let state = startRiff(RIFF);
+    state = hearNote(state, 'E2');
+    state = hearNote(state, 'E2');
+
+    expect(state.cursor).toBe(1);
+    expect(expectedNote(state)).toBe('E2');
   });
 });
 
