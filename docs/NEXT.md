@@ -422,7 +422,23 @@ should be a tree of menus with one automatic mode at the root.
       pattern across the domain and audio boundary, which is a bigger decision
       than 16e was and needs the audio path to have tests first.
 
-- [ ] **16b. The warm-up comment in `planStructuredSession` reads backwards.**
+- [x] **16b. The warm-up comment in `planStructuredSession` reads backwards.**
+      DONE 2026-09-05, comment only, behaviour untouched and confirmed
+      defensible: ending well is the stated priority, so the cool-down taking
+      first pick is right.
+
+      Verified from the source rather than taken from this entry, which was
+      correct. `comfort()` answers -1 for every never-practised item, so on day
+      one the sort is a stable no-op and `take()` runs for the cool-down first,
+      handing it the head of the plan.
+
+      **Also pinned by a test, which is the part that was missing.** Nothing
+      asserted the ordering, which is exactly how the sentence drifted without
+      anything noticing. The new test compares the bookends against
+      `planSession`'s own order rather than merely counting them, because a
+      first attempt that checked only lengths and uniqueness would have passed
+      against the bug it was written to catch. Swapping the two `take()` calls
+      now fails 6 tests. Original entry:
       It says "when there is not enough history to have a comfortable skill, the
       warm-up simply takes the easiest of what is planned." On day one every
       item scores `comfort() === -1`, so the sort is a no-op, plan order stands,

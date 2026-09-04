@@ -342,6 +342,24 @@ describe('planStructuredSession', () => {
     expect(session.coolDown.every((item) => item.phase === 'cool-down')).toBe(true);
   });
 
+  it('gives the cool-down first pick on day one, when nothing is comfortable yet', () => {
+    // docs/NEXT.md 16b. With no practice history `comfort()` answers -1 for
+    // every item, so the sort is a stable no-op and plan order stands. The
+    // cool-down is taken first, so it gets the head of the plan and the warm-up
+    // takes what follows. The docstring said the warm-up got first pick, which
+    // was backwards, and nothing pinned the real behaviour, which is how the
+    // sentence drifted unnoticed.
+    const plan = ids(planSession(catalog, [], NOW));
+    const session = planStructuredSession(catalog, [], NOW);
+
+    // The assertion that actually pins the claim: the cool-down holds the HEAD
+    // of the plan, and the warm-up holds what comes straight after it.
+    expect(ids(session.coolDown)).toEqual(plan.slice(0, DEFAULT_COOL_DOWN_ITEMS));
+    expect(ids(session.warmUp)).toEqual(
+      plan.slice(DEFAULT_COOL_DOWN_ITEMS, DEFAULT_COOL_DOWN_ITEMS + DEFAULT_WARM_UP_ITEMS),
+    );
+  });
+
   it('plays the cool-down last, even though it was chosen first', () => {
     const session = planStructuredSession(catalog, plain, NOW);
 

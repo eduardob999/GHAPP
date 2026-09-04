@@ -228,9 +228,19 @@ function comfort(item: PlannedItem): number {
  * existing due-first, family-interleaved rotation, and the bookends are drawn
  * from the same chosen items so nothing is practised twice in one sitting.
  *
- * When there is not enough history to have a comfortable skill, the warm-up
- * simply takes the easiest of what is planned. A session that refuses to start
- * until you have a history is no use on day one.
+ * On day one there is no history, so nothing is comfortable: `comfort()`
+ * answers -1 for every never-practised item, the sort below is a stable no-op,
+ * and the bookends are taken in plan order. A session that refuses to start
+ * until you have a history would be no use at all, so this is the intended
+ * fallback rather than a degraded one.
+ *
+ * **Which means the COOL-DOWN takes first pick, not the warm-up**, because
+ * `take()` is called for the cool-down first and ending well is the stated
+ * priority. This docstring claimed the opposite until 2026-09-05, saying the
+ * warm-up "simply takes the easiest of what is planned" (docs/NEXT.md 16b).
+ * The behaviour is defensible and unchanged; the sentence was describing a
+ * different function. Pinned by a test now, since nothing pinned it before,
+ * which is how the comment drifted without anything noticing.
  */
 export function planStructuredSession(
   catalog: readonly MicroSkillDefinition[],
