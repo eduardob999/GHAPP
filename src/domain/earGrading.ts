@@ -117,9 +117,21 @@ export function compareHeard(target: TargetChord, heard: HeardChord): EarVerdict
 export interface EarResult {
   /** The grade to file with the scheduler, or null when nothing was heard. */
   grade: PracticeResult | null;
-  /** Fraction of heard frames that matched cleanly, 0–1. */
+  /**
+   * Fraction of ALL frames in the window that matched cleanly, 0–1.
+   *
+   * Over `totalFrames`, not over `heardFrames`, which is what this said until
+   * 2026-09-05 and docs/NEXT.md 20. Ten clean frames in a twenty frame window
+   * whose other ten carried nothing reports 0.5, not 1.0.
+   *
+   * The denominator is the code's, deliberately: `CLEAN_SHARE` and the rest
+   * are calibrated against it, so this was a comment stating the wrong thing
+   * rather than a divisor computing the wrong thing. Silence counting against
+   * you is also the behaviour you want, since a rep half of which was not
+   * played is not a rep half as good.
+   */
   cleanFraction: number;
-  /** Fraction that were at least close. */
+  /** The same denominator, for frames that were at least close. */
   closeFraction: number;
   /** Frames where the detector reported something. */
   heardFrames: number;
@@ -257,8 +269,22 @@ export function fretPositionOf(note: string, maxFret = 12): FretPosition | null 
 
   if (options.length === 0) return null;
 
-  // Prefer the open position: lowest fret first, then the thickest string that
-  // reaches it, which keeps a riff inside one hand position.
+  /*
+   * Lowest fret first, then the thickest string that reaches it.
+   *
+   * This is decided PER NOTE, with no memory of the note before, so it does
+   * not keep a riff inside one hand position and the comment here claimed it
+   * did until 2026-09-05 (docs/NEXT.md 19). `['A2','C3','D3','E3']` comes out
+   * `5:0 5:3 4:0 4:2`, across three positions, not the `6:5 5:3 5:5 4:2` the
+   * old comment advertised.
+   *
+   * Left as it behaves rather than changed to match the claim, because the
+   * claim is not obviously the better rule for this app. An open string is the
+   * easiest thing on the instrument, and a beginner reading a practice prompt
+   * is better served by `5:0` than by being sent to the 5th fret to keep a
+   * shape tidy. Which of the two is wanted is a product decision, and it is
+   * recorded as an open one rather than settled here.
+   */
   options.sort((a, b) => a.fret - b.fret || b.string - a.string);
   return options[0]!;
 }

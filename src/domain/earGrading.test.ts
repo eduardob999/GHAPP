@@ -561,14 +561,19 @@ describe('describeRiffPositions', () => {
   });
 
   it('takes the open string every time, even when that leaves the hand position', () => {
-    // FINDING. The docstring gives "A2 C3 D3 E3" as "6:5 5:3 5:5 4:2", a riff
-    // sitting under one hand at the 5th fret, and says the sort "keeps a riff
-    // inside one hand position". The code sorts each note independently by
-    // lowest fret, with no memory of the note before it, so two of those four
-    // come out elsewhere: A2 is played open on the 5th string and D3 open on
-    // the 4th. The result is playable but it is spread over four strings and
-    // three hand positions rather than one. Recorded as the code behaves; the
-    // comment describes an intention the sort does not implement.
+    // Was a FINDING against a docstring that claimed the sort "keeps a riff
+    // inside one hand position" and gave "6:5 5:3 5:5 4:2". It does not: each
+    // note is placed independently at the lowest fret with no memory of the
+    // one before, so A2 goes open on the 5th string and D3 open on the 4th,
+    // spreading the riff over three positions.
+    //
+    // docs/NEXT.md 19, 2026-09-05: the docstring now says this, so the test no
+    // longer contradicts the source it covers. The BEHAVIOUR is deliberately
+    // unchanged and is not a defect: an open string is the easiest thing on
+    // the instrument, so `5:0` is arguably the better prompt for a learner
+    // than being sent to the 5th fret. Which rule the app wants is an open
+    // product question, and this assertion pins today's answer so a change to
+    // it has to be deliberate.
     expect(describeRiffPositions(['A2', 'C3', 'D3', 'E3'])).toBe('5:0  5:3  4:0  4:2');
   });
 

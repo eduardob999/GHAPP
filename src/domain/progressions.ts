@@ -953,13 +953,23 @@ export function scoreWindow(
 export { pitchClassOf };
 
 /**
- * Grades a riff by how much of it was heard.
+ * Grades a riff on which notes were heard AND on how many came out in order.
  *
  * Compared on pitch class, ignoring octave: the point of a riff drill is the
  * shape and the timing, and octave errors from the detector are common enough
- * on a low string that penalising them would teach the wrong lesson. Coverage,
- * not order — a riff played slightly out of sequence is a far smaller mistake
- * than playing the wrong notes.
+ * on a low string that penalising them would teach the wrong lesson.
+ *
+ * **This said "Coverage, not order" until 2026-09-05, and that had been wrong
+ * since LCS landed** (docs/NEXT.md 16c). It described the behaviour this
+ * interface had before `orderRatio` existed, while the field sat directly
+ * below it and `scoreRiffWindow` gated `hit` on it. `longestCommonSubsequence`
+ * carried the correct account of the same rule, so the two docstrings
+ * contradicted each other and a reader had no way to tell which was current.
+ *
+ * What actually happens: `hit` needs 70% of the expected pitch classes AND 60%
+ * of the phrase in sequence. `partial` needs either a third of the notes or
+ * half the order. So playing the right notes in the wrong order is no longer
+ * full marks, which for a riff is most of what there is to get wrong.
  */
 export interface RiffScore {
   score: ChordScore;
@@ -1127,7 +1137,18 @@ export type TimingVerdict = 'early' | 'on-time' | 'late' | 'none';
 export const ON_TIME_WINDOW_MS = 70;
 
 export function timingVerdict(offsetMs: number | null): TimingVerdict {
-  if (offsetMs === null) return 'none';
+  /*
+   * `Number.isFinite`, not `=== null`, and docs/NEXT.md 16c is why. NaN is a
+   * number as far as the type is concerned, and every comparison against it is
+   * false, so `NaN < -70` and `NaN > 70` both failed and a rep with no
+   * measurable onset fell through to 'on-time'. The player was told they were
+   * in the pocket when nothing had been heard at all.
+   *
+   * NaN reaches here the way it always does, from arithmetic on a timestamp
+   * that was never set. Treating it as 'none' is the same answer null gets,
+   * which is right: both mean the attack was not measured.
+   */
+  if (offsetMs === null || !Number.isFinite(offsetMs)) return 'none';
   if (offsetMs < -ON_TIME_WINDOW_MS) return 'early';
   if (offsetMs > ON_TIME_WINDOW_MS) return 'late';
   return 'on-time';
@@ -1147,7 +1168,16 @@ export function timingVerdict(offsetMs: number | null): TimingVerdict {
  */
 export function applyTiming(score: ChordScore, offsetMs: number | null): ChordScore {
   if (score !== 'hit') return score;
-  return timingVerdict(offsetMs) === 'on-time' || offsetMs === null ? 'hit' : 'partial';
+  /*
+   * Routed through the verdict rather than re-testing `offsetMs === null`
+   * beside it. The second check was a copy of the first line of
+   * `timingVerdict` and it drifted: once NaN became 'none' there, this would
+   * have gone on demoting a NaN to 'partial', which is exactly the punishment
+   * the docstring above promises never to apply to an unmeasured attack.
+   * One owner for "was there an onset", so the two cannot disagree again.
+   */
+  const verdict = timingVerdict(offsetMs);
+  return verdict === 'on-time' || verdict === 'none' ? 'hit' : 'partial';
 }
 
 /**

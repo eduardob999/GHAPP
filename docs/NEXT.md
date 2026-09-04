@@ -383,7 +383,25 @@ should be a tree of menus with one automatic mode at the root.
       the warm-up gets `easy-b` and `middling`. The behaviour is defensible,
       since ending well is the stated priority, but the sentence describes the
       opposite. Correct the comment.
-- [ ] **16c. Two stale or wrong docstrings around riff scoring.** The
+- [x] **16c. Two stale or wrong docstrings around riff scoring.** DONE
+      2026-09-05, and the second half was a real defect rather than a comment.
+
+      The `RiffScore` docstring now describes the LCS behaviour and says what
+      the thresholds actually are, 70% coverage AND 60% order for a hit. It
+      also records that it contradicted `longestCommonSubsequence`, because two
+      docstrings disagreeing is worse than one being stale: a reader cannot
+      tell which is current.
+
+      `timingVerdict(NaN)` is fixed with `Number.isFinite`, not a null check.
+      This was filed as display-only on the grounds that the grade was safe
+      either way, and that held, but only by accident: `applyTiming` carried
+      its own hand-written `offsetMs === null` test beside the call, so making
+      NaN return 'none' would have started demoting unmeasured attacks to
+      'partial', which is precisely what its docstring promises never to do.
+      Both now route through the verdict, so there is one owner for "was there
+      an onset". Mutation-checked: restoring the old comparison fails 2 tests.
+
+      Original entry: The
       `RiffScore` docstring still describes the pre-LCS behaviour, "Coverage,
       not order", while the function below it computes an order ratio and gates
       `hit` on it, and `longestCommonSubsequence`'s own docstring says the
@@ -400,15 +418,42 @@ should be a tree of menus with one automatic mode at the root.
       chord carried the right one. Both sides of that edge are now pinned in
       `earGrading.test.ts`, so whichever way it is resolved the change will be
       visible. Found 2026-09-03.
-- [ ] **18. Two chords the mask cannot spell compare as a clean hit.**
-      `chordPitchClassMask` returns `0` for any root missing from its sharp-only
-      table, and `compareHeard` treats equal masks as a match. So
-      `compareHeard({root:'Bb'...}, {root:'Db'...})` returns `'clean'`: a
-      perfect score for the wrong chord. Unreachable today, because `noteAt`
-      only emits sharps and the detector shares the table, but it is one flat
-      spelling in a catalog entry away from mattering. A mask of 0 should be
-      treated as unknown rather than as a value.
-- [ ] **19. `describeRiffPositions` does not do what its docstring claims.**
+- [x] **18. Two chords the mask cannot spell compare as a clean hit.**
+      **DONE 2026-09-05, as the second half of 16f.** This was the same defect
+      filed twice, from two directions: 16f found it while consolidating note
+      parsers, 18 found it by reading `compareHeard`. Worth noticing that the
+      duplicate existed, because the two entries disagreed about severity and
+      18 was the one that was right.
+
+      A mask of 0 is now treated as unknown rather than as a value, in
+      `sameChordTones`, which both call sites share. `compareHeard({root:'Bb'},
+      {root:'Db'})` returns `'wrong'`.
+
+      **"Unreachable today" was the wrong reading, and it is worth keeping why.**
+      Both entries said the flat spelling was latent because `noteAt` emits only
+      sharps. True of the ROOT NAMES the detector produces, and irrelevant to
+      the catalog, which is hand-authored data where nothing stops a flat being
+      typed. The guard belongs there regardless of whether anything reaches it,
+      because the failure direction is a wrong answer scored as correct.
+- [~] **19. `describeRiffPositions` does not do what its docstring claims.**
+      **Docstring corrected 2026-09-05; the behaviour is left alone and the
+      choice is now an open question for Eduardo, not a bug.**
+
+      The comment is no longer lying: it says the placement is per note with no
+      memory of the previous one, gives the real output, and says why that was
+      not simply changed to match the claim.
+
+      **The question to put to him, when there is a reason to ask:** should a
+      riff prompt prefer open strings, or one hand position? They conflict.
+      Open strings are the easiest thing on the guitar and a beginner is
+      probably better served by `5:0` than by being sent to the 5th fret to
+      keep a shape tidy, which is why the code was not "fixed" to match its own
+      comment. But a riff spread over three positions is harder to play as a
+      phrase. Implementing position coherence means scoring the whole sequence
+      for span rather than each note alone: real work, pure, testable, and
+      pointless before knowing which he wants.
+
+      Original entry:
       The docstring says the sort "keeps a riff inside one hand position" and
       gives `6:5 5:3 5:5 4:2` as the shape of the output. For
       `['A2','C3','D3','E3']` the code actually returns `5:0 5:3 4:0 4:2`: the
@@ -416,7 +461,12 @@ should be a tree of menus with one automatic mode at the root.
       string wherever one exists and spreads the riff across three positions.
       The output is playable, but the claim is not implemented. Either implement
       it or correct the docstring.
-- [ ] **20. Two docstrings state the wrong denominator.** `cleanFraction` and
+- [x] **20. Two docstrings state the wrong denominator.** DONE 2026-09-05,
+      comments only, no divisor touched. The corrected docstring also records
+      WHY the denominator is right rather than merely which one it is: a rep
+      half of which was never played is not a rep half as good, so silence
+      counting against the fraction is the wanted behaviour.
+      Original entry: `cleanFraction` and
       `closeFraction` are documented as the "fraction of heard frames" and are
       computed over `totalFrames`. Ten clean frames in a twenty frame window
       whose other ten carried nothing reports 0.5, not 1.0. The thresholds are

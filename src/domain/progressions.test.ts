@@ -158,6 +158,31 @@ describe('timingVerdict', () => {
     expect(timingVerdict(null)).toBe('none');
   });
 
+  it('calls an unmeasurable onset "none" too, rather than "on time"', () => {
+    // docs/NEXT.md 16c. NaN is a number to the type system and every
+    // comparison against it is false, so both window tests failed and NaN fell
+    // through to the 'on-time' return: a rep with no measurable attack was
+    // reported as perfectly in the pocket. The wrong direction to fail, since
+    // it is praise for something that did not happen.
+    expect(timingVerdict(Number.NaN)).toBe('none');
+    expect(timingVerdict(Number.POSITIVE_INFINITY)).toBe('none');
+    expect(timingVerdict(Number.NEGATIVE_INFINITY)).toBe('none');
+  });
+
+  it('does not let an unmeasurable onset demote a hit', () => {
+    // The other half, and the reason `applyTiming` stopped testing for null
+    // itself. Its docstring promises that a missing onset never demotes;
+    // once NaN became 'none' rather than 'on-time', a second hand-written
+    // `offsetMs === null` check beside it would have sent NaN to 'partial'
+    // and broken that promise while fixing the first bug.
+    expect(applyTiming('hit', null)).toBe('hit');
+    expect(applyTiming('hit', Number.NaN)).toBe('hit');
+    expect(applyTiming('hit', 0)).toBe('hit');
+    expect(applyTiming('hit', ON_TIME_WINDOW_MS + 1)).toBe('partial');
+    // Timing is one-way: it can demote a hit, never promote anything else.
+    expect(applyTiming('miss', 0)).toBe('miss');
+  });
+
   it('counts the whole window either side of the beat as on time', () => {
     expect(timingVerdict(0)).toBe('on-time');
     expect(timingVerdict(ON_TIME_WINDOW_MS)).toBe('on-time');
@@ -238,12 +263,17 @@ describe('applyTiming: timing only ever demotes', () => {
     }
   });
 
-  it('keeps a hit when the offset is not a number, failing toward the player', () => {
-    // NOTE, a finding: NaN passes both comparisons in `timingVerdict`, so it
-    // reads as 'on-time' rather than as a missing onset. The outcome is the
-    // safe one either way, since 'none' and 'on-time' both leave a hit intact,
-    // but the verdict itself is wrong and would show as "on time" in the UI.
-    expect(timingVerdict(Number.NaN)).toBe('on-time');
+  it('keeps a hit when the offset is not a number, and now calls it none', () => {
+    // Was the finding recorded here: NaN passed both comparisons in
+    // `timingVerdict` and read as 'on-time' rather than as a missing onset.
+    // The grade was safe either way, which is why it was filed rather than
+    // fixed, but the UI would tell the player they were in the pocket when no
+    // attack had been measured at all.
+    //
+    // docs/NEXT.md 16c, fixed 2026-09-05. The grade is unchanged, which is the
+    // point of keeping both assertions here: the verdict got more truthful
+    // without the player's score moving.
+    expect(timingVerdict(Number.NaN)).toBe('none');
     expect(applyTiming('hit', Number.NaN)).toBe('hit');
   });
 });
