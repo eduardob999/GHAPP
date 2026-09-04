@@ -360,15 +360,21 @@ describe('scoreDetection', () => {
     expect(scoreDetection(TARGET, heard('D', 'min'))).toBe('miss');
   });
 
-  it('does not recognise a flat spelling of the root it was given', () => {
-    // NOTE, a finding: `scoreDetection` compares root strings and then falls
-    // back on a pitch-class mask built by `chordPitchClassMask`, which only
-    // knows the sharp names, so a flat-spelled target masks to 0 and the
-    // enharmonic path is skipped. `tunings.ts` has `normaliseRoot` for exactly
-    // this and `scoreDetection` does not call it. Nothing in the catalog
-    // spells a root with a flat today, and `transposeRoot` emits sharps, so
-    // this is latent rather than live.
-    expect(scoreDetection({ root: 'Bb', quality: 'maj' }, heard('A#', 'maj'))).toBe('miss');
+  it('recognises a flat spelling of the root as the same chord', () => {
+    // Was the finding recorded here as "does not recognise", asserting the
+    // defect. docs/NEXT.md 16f: `chordPitchClassMask` resolved its root with a
+    // sharp-only lookup, so "Bb" masked to 0 and could never match the "A#"
+    // the detector reports. It resolves through `pitchClassOfRoot` now.
+    expect(scoreDetection({ root: 'Bb', quality: 'maj' }, heard('A#', 'maj'))).toBe('hit');
+    expect(scoreDetection({ root: 'Db', quality: 'min' }, heard('C#', 'min'))).toBe('hit');
+  });
+
+  it('still calls a genuinely different chord a miss when both roots are flats', () => {
+    // The other half of 16f, and the dangerous half: two unresolvable roots
+    // both masked to 0 and `0 === 0` read as a hit. This call site guarded by
+    // hand and so was never wrong; the assertion is here to keep it that way
+    // now that the guard has moved into `sameChordTones`.
+    expect(scoreDetection({ root: 'Bb', quality: 'maj' }, heard('Db', 'min'))).toBe('miss');
   });
 });
 

@@ -329,7 +329,7 @@ should be a tree of menus with one automatic mode at the root.
       fails 3 tests, dropping the four spellings fails 13, and unanchoring the
       regex fails 3.
 
-- [ ] **16f. The same flat-root blindness, one layer down in the audio code.**
+- [x] **16f. The same flat-root blindness, one layer down in the audio code.** DONE 2026-09-05.
       Found 2026-09-03 while consolidating the note parsers for 16e, and left
       alone because it sits in the untested audio path rather than in domain.
 
@@ -342,6 +342,31 @@ should be a tree of menus with one automatic mode at the root.
       Latent for exactly the reason 16e was: every root in the catalog is a
       natural or a sharp, and that was enumerated rather than assumed. It goes
       live the day someone writes a flat.
+
+      **Fixed 2026-09-05.** `chordPitchClassMask` resolves its root through
+      `pitchClassOfRoot` in `tunings.ts`, so there is one owner for note
+      spelling rather than a private sharp-only table. The audio -> domain
+      import is the direction that was already open: `earGrading.ts` and
+      `progressions.ts` both import from `chordDetection.ts`, and `tunings.ts`
+      imports nothing.
+
+      **The second half was worse than this note recorded, and was live.**
+      `earGrading.ts` compared masks with a bare `===`, and an unresolvable
+      root masks to 0, so two roots the app could not spell compared EQUAL:
+      `Bb` major graded CLEAN against `Db` minor. A wrong answer accepted,
+      which is the failure direction `samePitchClass` was written to stop one
+      layer up. `progressions.ts` had guarded by hand and was never wrong.
+      Both now go through `sameChordTones`, which is the same shape as
+      `samePitchClass` and exists for the same recorded reason: "every call
+      site has to remember" is how it broke the first time.
+
+      **Mutation-checked both ways, and the second one mattered.** Restoring
+      the sharp-only lookup fails 2 tests. Deleting the zero guard failed
+      NOTHING at first: fixing the flat lookup had moved `Bb` and `Db` onto
+      real, differing masks, so the pair that originally demonstrated the bug
+      stopped exercising the guard entirely. The test now uses genuinely
+      unspellable roots, which is the case that survives: a typo in the
+      catalog. 335 tests green.
 
       **There are also two more copies of the pitch-class name array**, in
       `chordDetection.ts` and `audio/notes.ts`. 16e collapsed three copies in

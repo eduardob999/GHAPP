@@ -1,4 +1,4 @@
-import { chordPitchClassMask, type ChordQuality } from '../audio/chordDetection';
+import { sameChordTones, type ChordQuality } from '../audio/chordDetection';
 import type { MicroSkillDefinition, PracticeResult } from './skills';
 
 /**
@@ -91,7 +91,10 @@ export function compareHeard(target: TargetChord, heard: HeardChord): EarVerdict
   if (heard.root === target.root && heard.quality === target.quality) return 'clean';
 
   // Same set of notes under another name — enharmonic identity, not an error.
-  if (chordPitchClassMask(heard.root, heard.quality) === chordPitchClassMask(target.root, target.quality)) {
+  // Through `sameChordTones` rather than comparing masks here, because two
+  // roots the app cannot spell both mask to 0 and an `===` calls that a clean
+  // hit on a different chord. docs/NEXT.md 16f.
+  if (sameChordTones(heard, target)) {
     return 'clean';
   }
 

@@ -19,6 +19,8 @@
  *     still reported as no chord.
  */
 
+import { pitchClassOfRoot } from '../domain/tunings';
+
 export type ChordQuality =
   | 'maj'
   | 'min'
@@ -165,14 +167,51 @@ const INTERVALS_BY_QUALITY: Record<ChordQuality, readonly number[]> = Object.fro
  * information is not in a pitch-class profile.
  */
 export function chordPitchClassMask(root: string, quality: ChordQuality): number {
-  const rootPc = PITCH_CLASS_NAMES.indexOf(root as (typeof PITCH_CLASS_NAMES)[number]);
-  if (rootPc < 0) return 0;
+  /*
+   * The root is resolved by `pitchClassOfRoot`, not by an `indexOf` into the
+   * sharp table below. docs/NEXT.md 16f: the sharp-only lookup returned -1 for
+   * every flat spelling, so a catalog root of "Db" masked to 0 and could never
+   * match the "C#" the detector reports, which is the same chord.
+   *
+   * That is the same fault 16e fixed one layer up, and it is fixed the same
+   * way: one owner for note spelling, in `tunings.ts`, rather than a fourth
+   * private copy of the table. The dependency runs audio -> domain, which is
+   * the direction that was already open; `earGrading.ts` and `progressions.ts`
+   * both import from here, and `tunings.ts` imports nothing at all.
+   */
+  const rootPc = pitchClassOfRoot(root);
+  if (rootPc === null) return 0;
 
   let mask = 0;
   for (const interval of INTERVALS_BY_QUALITY[quality] ?? []) {
     mask |= 1 << ((rootPc + interval) % 12);
   }
   return mask;
+}
+
+/**
+ * Do two chords contain literally the same notes?
+ *
+ * **False whenever either root is unspellable**, which is the entire point of
+ * the helper and the reason it exists rather than being an `===` at each call
+ * site. `chordPitchClassMask` answers 0 for a root it cannot resolve, and
+ * `0 === 0` is true, so before this a target the app could not spell was
+ * matched by *any* chord it also could not spell: `Bb` major read as a clean
+ * hit against `Db` minor. Failing in that direction is the dangerous one,
+ * because it accepts a wrong answer rather than rejecting a right one.
+ *
+ * Exactly the shape of `samePitchClass` in `tunings.ts`, for exactly the
+ * reason recorded there: "every call site has to remember" is how it broke the
+ * first time. `progressions.ts` remembered and guarded; `earGrading.ts` did
+ * not.
+ */
+export function sameChordTones(
+  a: { root: string; quality: ChordQuality },
+  b: { root: string; quality: ChordQuality },
+): boolean {
+  const left = chordPitchClassMask(a.root, a.quality);
+  if (left === 0) return false;
+  return left === chordPitchClassMask(b.root, b.quality);
 }
 
 /** Guitar range with a little headroom: drop-C low end to past the 24th fret. */

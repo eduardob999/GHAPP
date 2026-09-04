@@ -215,17 +215,29 @@ describe('compareHeard', () => {
     expect(compareHeard(G_MAJOR, heard('D', 'maj'))).toBe('wrong');
   });
 
-  it('does not recognise a flat spelling of a root, and treats two of them as identical', () => {
-    // FINDING, recorded rather than endorsed. `chordPitchClassMask` returns 0
-    // for a root name it cannot find, and the sharp table is the only one it
-    // has. So a target written "Bb" never matches the "A#" the detector
-    // reports, and worse, two roots it cannot spell both mask to 0 and compare
-    // equal, which reads as a clean hit on an entirely different chord.
-    // Nothing reaches this today: `noteAt` only ever emits sharps and the
-    // detector shares the same name table. It is one flat spelling in a
-    // catalog entry away from mattering.
-    expect(compareHeard({ root: 'Bb', quality: 'maj' }, heard('A#', 'maj'))).toBe('wrong');
-    expect(compareHeard({ root: 'Bb', quality: 'maj' }, heard('Db', 'min'))).toBe('clean');
+  it('recognises a flat spelling of a root as the same chord', () => {
+    // Was the FINDING recorded here, asserting the defect rather than
+    // endorsing it. docs/NEXT.md 16f, now fixed: the root resolves through
+    // `pitchClassOfRoot`, which knows both spellings.
+    expect(compareHeard({ root: 'Bb', quality: 'maj' }, heard('A#', 'maj'))).toBe('clean');
+    expect(compareHeard({ root: 'Db', quality: 'maj' }, heard('C#', 'maj'))).toBe('clean');
+  });
+
+  it('no longer reads two unspellable roots as the same chord', () => {
+    // The dangerous half of the same finding, and the one that was live here:
+    // this call site compared masks with a bare `===`, so two roots that both
+    // masked to 0 graded CLEAN. A wrong answer accepted, which is the
+    // direction that costs the player a rep they never earned.
+    //
+    // The roots have to be genuine nonsense to reach it. Fixing the flat
+    // lookup moved `Bb` and `Db` onto real, different masks, so the pair that
+    // originally demonstrated the bug no longer exercises the guard at all: a
+    // mutation run with the guard deleted passed all 335 tests. What is left
+    // is a typo in the catalog, which is precisely what `samePitchClass` in
+    // tunings.ts exists to make fail visibly rather than silently.
+    expect(compareHeard({ root: 'H', quality: 'maj' }, heard('Zz', 'min'))).toBe('wrong');
+    expect(compareHeard({ root: 'H', quality: 'maj' }, heard('H', 'min'))).toBe('wrong');
+    expect(compareHeard({ root: 'Bb', quality: 'maj' }, heard('Db', 'min'))).toBe('wrong');
   });
 });
 

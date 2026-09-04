@@ -1,4 +1,4 @@
-import { chordPitchClassMask, type ChordQuality } from '../audio/chordDetection';
+import { sameChordTones, type ChordQuality } from '../audio/chordDetection';
 import { SONG_PROGRESSIONS } from './songs';
 import {
   DEFAULT_TUNING,
@@ -901,9 +901,9 @@ export function scoreDetection(
   // {C,E,G,A}; every diminished seventh is three other diminished sevenths.
   // Nothing in a pitch-class profile distinguishes them, and nothing in the
   // player's hands did either.
-  const expectedMask = chordPitchClassMask(expected.root, expected.quality);
-  const detectedMask = chordPitchClassMask(detected.root, detected.quality);
-  if (expectedMask !== 0 && expectedMask === detectedMask) return 'hit';
+  // This call site already guarded against the 0 mask by hand; it now shares
+  // the helper so the care lives in one place rather than two. docs/NEXT.md 16f.
+  if (sameChordTones(expected, detected)) return 'hit';
 
   if (detected.root !== expected.root) return 'miss';
 
