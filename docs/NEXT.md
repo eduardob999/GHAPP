@@ -290,6 +290,25 @@ should be a tree of menus with one automatic mode at the root.
       re-picked while it is still ringing. That needs a guitar and a
       microphone.
 
+      **CORRECTION 2026-09-05, later the same morning: I overstated the risk
+      above, and this repo's own ROADMAP.md is what says so.** The doubt
+      recorded was "whether the onset detector fires on a string re-picked
+      while it is still ringing", called uncheckable without a guitar. The
+      roadmap answers it directly: the detector uses **asymmetric baseline
+      smoothing specifically so the baseline still represents 'before the
+      attack' once a note is ringing**, which is that exact case, by design.
+      It is measured too: 5/5 strums found within 2 ms of truth, zero false
+      positives, none in silence, and exactly one in a steady tone, that one
+      being the initial attack.
+
+      One onset per attack and none from a note merely sustaining is precisely
+      the signal `hearNote` now consumes. So the remaining risk is not the
+      signal, it is the React wiring: an `onOnset` callback on a shared hook
+      and folding the drill from a callback rather than an effect, in a panel
+      with no tests. Still not doing that unasked, but the cost/benefit is
+      better than the entry above implies, and it is his call rather than a
+      blocked task.
+
       **The question for him, which is ten seconds of his time:** does String
       Sniper actually stall for you on a riff with a repeated note? If yes, the
       bug is live and the wiring is worth the surgery. If the drill already
