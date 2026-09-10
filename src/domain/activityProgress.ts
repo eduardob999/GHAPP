@@ -102,3 +102,79 @@ export function describeEvidence(evidence: EvidenceState): string {
   if (evidence.close > 0) return 'Close. Check every string is ringing.';
   return 'Heard something else — check the shape.';
 }
+
+/* ── Notes, rather than chords ─────────────────────────────────────────────── */
+
+/**
+ * Counting pick attacks.
+ *
+ * Everything above is chord-shaped: frames of a held shape, weighed against a
+ * target. A picked note is not that. It is an event, over in a moment, and the
+ * question a picking activity asks is *how many landed*, not how long one was
+ * held — so frames of evidence never accumulate and the activity sits there
+ * until somebody presses Skip.
+ *
+ * An activity that knows which notes are coming uses `riffDrill`, which is what
+ * String Sniper runs on. This is for the one activity that cannot: the tune-up,
+ * where the whole point is that the strings may be *wrong*. Insisting on a
+ * clean E2 before moving off the 6th string would strand a player with a flat
+ * guitar on the very screen that exists to fix it. So it counts strikes and
+ * asks nothing about their pitch.
+ */
+export interface StrikeState {
+  /** Notes heard as separate attacks, oldest first. */
+  readonly struck: readonly string[];
+  /** The last note heard, so a ringing string is not counted twice. */
+  lastHeard: string | null;
+  /** The attack the last counted strike came from, when one was supplied. */
+  lastOnsetAt: number | null;
+}
+
+export const EMPTY_STRIKES: StrikeState = { struck: [], lastHeard: null, lastOnsetAt: null };
+
+/**
+ * Folds one heard note in, counting attacks rather than frames.
+ *
+ * The rule is `hearNote`'s in `riffDrill.ts`, deliberately: a change of note is
+ * a new strike, and so is a fresh onset on the same note — which is what lets a
+ * string picked twice count twice. Silence is not a strike, but it does clear
+ * the last note, so the next pick of the same string still counts where attack
+ * detection missed it.
+ *
+ * Returns the state it was given when nothing changed, so a caller sampling on
+ * a clock can compare by identity rather than re-rendering on every frame of
+ * silence.
+ */
+export function addStrike(
+  state: StrikeState,
+  heard: string | null,
+  onsetAt?: number | null,
+): StrikeState {
+  if (!heard) return state.lastHeard === null ? state : { ...state, lastHeard: null };
+
+  const repicked = onsetAt != null && onsetAt !== state.lastOnsetAt;
+  if (heard === state.lastHeard && !repicked) return state;
+
+  return {
+    struck: [...state.struck, heard],
+    lastHeard: heard,
+    lastOnsetAt: onsetAt ?? state.lastOnsetAt,
+  };
+}
+
+/** True once as many strings have been struck as the activity asked for. */
+export function isStruckThrough(state: StrikeState, expected: number): boolean {
+  return state.struck.length >= Math.max(1, expected);
+}
+
+/** How far through the strikes, 0–1, for the progress rail. */
+export function strikeProgress(state: StrikeState, expected: number): number {
+  return Math.min(1, state.struck.length / Math.max(1, expected));
+}
+
+/** What to say while the strikes are being counted. */
+export function describeStrikes(state: StrikeState, expected: number): string {
+  if (state.struck.length === 0) return 'Play a string — it moves on by itself.';
+  if (state.struck.length >= expected) return 'That is all of them.';
+  return `${state.struck.length} of ${expected} heard. Keep going.`;
+}

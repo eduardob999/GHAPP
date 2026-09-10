@@ -33,21 +33,23 @@ npm run ship       # build, push, watch the deploy, then fetch the live page and
 npm run icons      # regenerate public/icons from the source art
 ```
 
-**Seven domain modules have tests. The audio path has none.** `npm test` runs
-vitest over `src/domain/*.test.ts`: **278 tests as of 2026-09-03**, covering
+**Ten domain modules have tests. The audio path has none.** `npm test` runs
+vitest over `src/domain/*.test.ts`: **361 tests as of 2026-09-10**, covering
 `fsrs.ts`, `scheduler.ts`, `sessionPlanner.ts`, `earGrading.ts`, the grading
-logic in `progressions.ts`, `riffDrill.ts`, and `tunings.ts`.
+logic in `progressions.ts`, `riffDrill.ts`, `tunings.ts`, `stringSniper.ts`,
+the strike counter in `activityProgress.ts`, and the note sequences in
+`autoSession.ts`.
 
 Those are the places where a silent change does the most damage: they decide
 when a skill comes back, what a session looks like, and whether a rep counted.
 The timing rule in particular is pinned from seven directions and was checked by
 deliberately breaking `applyTiming` to confirm the tests fail.
 
-**Still uncovered:** everything under `src/audio/`, `autoSession.ts`,
-`shapeTrainer.ts`, `stringSniper.ts`, `companion.ts`, and all of
-the catalog content. kanji-app has a test file beside every module in
-`src/domain/` and 296 tests, so this is closer to that than it was, and not
-there. **Do not assume an audio or detection change is covered by anything.**
+**Still uncovered:** everything under `src/audio/`, `shapeTrainer.ts`,
+`companion.ts`, the chord-evidence half of `activityProgress.ts`, the scoring
+half of `autoSession.ts`, and all of the catalog content. kanji-app has a test
+file beside every module in `src/domain/`; this has ten of them, which is
+closer than it was and not there. **Do not assume an audio or detection change is covered by anything.**
 
 This paragraph has been wrong before: it said "41 tests, nothing else does" for
 several hours after that stopped being true. If you add tests, edit this line in

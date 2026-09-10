@@ -1,4 +1,9 @@
-import { PROGRESSIONS, progressionIdFromSkillId, type ChordProgression } from './progressions';
+import {
+  PROGRESSIONS,
+  progressionIdFromSkillId,
+  progressionsForSkill,
+  type ChordProgression,
+} from './progressions';
 import { planStructuredSession, type StructuredItem } from './sessionPlanner';
 import { hasDiagram, toDiagram } from './shapeTrainer';
 import { isUnlocked, lockStateOf } from './curriculum';
@@ -6,9 +11,12 @@ import { fullCatalog } from './sessionPlanner';
 import {
   SKILL_CATALOG,
   type MicroSkillDefinition,
+  type PickingSkillDefinition,
   type PracticeResult,
   type SkillPracticeState,
 } from './skills';
+import { STRIKES_PER_SET } from './stringSniper';
+import { DEFAULT_TUNING, TUNINGS } from './tunings';
 import type { StreakSummary } from './streaks';
 
 /**
@@ -57,6 +65,16 @@ export interface Activity {
   shapeSkillId?: string;
   /** Sniper: which string. */
   targetString?: number;
+  /**
+   * The notes this activity is finished by, in order.
+   *
+   * Present on everything that is picked rather than strummed — riffs, picking
+   * drills, and the tune-up. It is what lets the session move on when the
+   * string has actually been played, the way String Sniper does, instead of
+   * waiting on a clock or on somebody pressing Skip. Absent on chord work,
+   * which is judged by what is held rather than by what is struck.
+   */
+  notes?: readonly string[];
 }
 
 export interface AutoSessionScript {
@@ -180,6 +198,45 @@ function lessonFor(
   };
 }
 
+/** Every open string, 6th first — the notes a tune-up is waiting for. */
+export const OPEN_STRINGS: readonly string[] = TUNINGS[DEFAULT_TUNING].strings;
+
+/** The open note of one string, in the numbering used everywhere: 6 is the low E. */
+function openNoteOf(string: number): string | null {
+  return OPEN_STRINGS[6 - string] ?? null;
+}
+
+/**
+ * A picking skill as notes to play.
+ *
+ * This is what makes a picking drill finishable without a Skip. The drill was
+ * a title and a duration — nothing said which notes counted, so nothing could
+ * tell when it was over, and the auto session simply sat on it.
+ *
+ * A written riff wins where there is one: the string-set skills each have one,
+ * they are the same riffs String Sniper drills, and real music beats a
+ * generated exercise. Where there is none — the single-string snipers, the
+ * fingerstyle patterns — the strings the catalog names are cycled into a set
+ * of strikes, which is exactly what those entries describe in prose.
+ */
+export function pickingNotes(definition: PickingSkillDefinition): string[] {
+  const riff = progressionsForSkill(definition.id).find((progression) =>
+    progression.chords.every((step) => step.mode === 'riff'),
+  );
+  if (riff) return riff.chords.flatMap((step) => [...(step.notes ?? [])]);
+
+  const strings = definition.metadata.targetStrings ?? [];
+  const open = strings
+    .map((string: number) => openNoteOf(string))
+    .filter((note): note is string => note !== null);
+  if (open.length === 0) return [];
+
+  return Array.from(
+    { length: STRIKES_PER_SET },
+    (_, index) => open[index % open.length] as string,
+  );
+}
+
 function activityFor(
   item: StructuredItem,
   level: 'beginner' | 'intermediate' | 'advanced',
@@ -210,6 +267,12 @@ function activityFor(
       skillId: definition.id,
       progressionId: progression.id,
       tempoBpm: Math.round(progression.tempoBpm * tempoScale),
+      // A riff is finished by its notes, not by its tempo: the tempo is a
+      // suggestion to play it at, and being marched past a note you have not
+      // played yet is the one thing a picking drill must not do.
+      ...(isRiff
+        ? { notes: progression.chords.flatMap((step) => [...(step.notes ?? [])]) }
+        : {}),
     };
   }
 
@@ -227,6 +290,12 @@ function activityFor(
 
   if (definition.category === 'picking_technique') {
     const strings = definition.metadata.targetStrings;
+    const notes = pickingNotes(definition);
+
+    // No notes means nothing could ever end it. Dropping it is kinder than
+    // showing a drill whose only exit is the Skip button.
+    if (notes.length === 0) return null;
+
     return {
       id: `act.${definition.id}`,
       kind: 'sniper',
@@ -234,6 +303,7 @@ function activityFor(
       coaching: definition.description,
       seconds: Math.min(seconds, 45),
       skillId: definition.id,
+      notes,
       ...(strings?.length ? { targetString: strings[0] } : {}),
     };
   }
@@ -317,6 +387,10 @@ export function buildAutoSession(input: AutoSessionInput): AutoSessionScript {
       title: 'Quick tune-up',
       coaching: 'Play each string open. Nothing after this is worth scoring if the guitar is out.',
       seconds: 45,
+      // Six strings struck and it moves on by itself. Counted, not matched:
+      // the tune-up is the one place where a string being wrong is expected,
+      // so demanding the right pitch would strand the player here.
+      notes: OPEN_STRINGS,
     });
   }
 

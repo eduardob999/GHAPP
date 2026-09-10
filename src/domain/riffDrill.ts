@@ -75,15 +75,22 @@ export function expectedNote(state: RiffDrillState): string | null {
  *
  * **Optional on purpose.** Called without it, every path below behaves exactly
  * as it did before, so the drill is never made worse by a caller that has no
- * onsets to give. `StringSniperPanel` supplies them; the detector was already
- * keeping them for Chord Hero.
+ * onsets to give. `AutoSessionPanel` supplies them, because it samples on a
+ * clock and can see an attack arrive under an unchanged note name;
+ * `StringSniperPanel` reacts to note *changes*, where an onset would never be
+ * looked at, and passes none. The detector was already keeping them for Chord
+ * Hero either way.
  */
 export function hearNote(
   state: RiffDrillState,
   heard: string | null,
   onsetAt?: number | null,
 ): RiffDrillState {
-  if (!heard) return { ...state, lastHeard: null };
+  // Silence clears the last note, so the same string picked again still
+  // counts. The state is returned unchanged when it is already clear: a caller
+  // sampling on a clock compares by identity, and a fresh object per silent
+  // frame would have it re-rendering ten times a second at rest.
+  if (!heard) return state.lastHeard === null ? state : { ...state, lastHeard: null };
 
   // A fresh attack, rather than the same note still sounding.
   const repicked = onsetAt != null && onsetAt !== state.lastOnsetAt;

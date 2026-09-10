@@ -22,12 +22,28 @@ import {
 } from '../domain/earGrading';
 import {
   EMPTY_EVIDENCE,
+  EMPTY_STRIKES,
   addFrame,
+  addStrike,
   decisionProgress,
   describeEvidence,
+  describeStrikes,
   isDecided,
+  isStruckThrough,
+  strikeProgress,
   type EvidenceState,
+  type StrikeState,
 } from '../domain/activityProgress';
+import {
+  expectedNote,
+  gradeRiff,
+  hearNote,
+  isRiffComplete,
+  riffPositions,
+  startRiff,
+  summariseRiff,
+  type RiffDrillState,
+} from '../domain/riffDrill';
 import {
   PROGRESSION_BY_ID,
   chordAt,
@@ -53,10 +69,11 @@ import { useHandedness } from '../hooks/useHandedness';
  * The auto session: press play, then play.
  *
  * Everything about *what* happens is decided in `src/domain/autoSession.ts` —
- * this file is the surface. It renders the current activity, counts it down,
- * moves on when it is over, and files what happened. There is deliberately no
- * setting on this screen: the moment it grows a tempo slider it becomes another
- * thing to configure before playing, which is the mode it exists to replace.
+ * this file is the surface. It renders the current activity, listens, moves on
+ * when the playing says it is over, and files what happened. There is
+ * deliberately no setting on this screen: the moment it grows a tempo slider it
+ * becomes another thing to configure before playing, which is the mode it
+ * exists to replace.
  *
  * Laid out from the Claude Design mockup (screen 1a): a segmented rail across
  * the top, one large card in the middle carrying whatever the current activity
@@ -104,10 +121,21 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
   const [script, setScript] = useState<AutoSessionScript | null>(null);
   const [outcomes, setOutcomes] = useState<ActivityOutcome[]>([]);
   const [lastDetail, setLastDetail] = useState<string | null>(null);
+  /**
+   * The two ways a picked activity finishes.
+   *
+   * `drill` is the riff drill String Sniper runs on: it knows which notes are
+   * coming and advances the cursor as each one is heard. `strikes` is the
+   * tune-up, which counts strings struck without judging their pitch — see
+   * `activityProgress.ts` for why those cannot be the same thing.
+   */
+  const [drill, setDrill] = useState<RiffDrillState | null>(null);
+  const [strikes, setStrikes] = useState<StrikeState>(EMPTY_STRIKES);
 
   const {
     currentChord,
     currentNote,
+    onsets,
     error: micError,
     errorCode,
     isRunning: micRunning,
@@ -121,12 +149,16 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
    * Everything heard during the current activity.
    *
    * One microphone, one buffer, read differently per activity kind — a chord
-   * shape wants frames of chords, a progression wants them bucketed by step,
-   * a riff wants note names. Collecting once and interpreting at the end keeps
-   * a single listening path rather than four.
+   * shape wants frames of chords, a progression wants them bucketed by step.
+   * Collecting once and interpreting at the end keeps a single listening path
+   * rather than four.
+   *
+   * The picked kinds keep no buffer at all: a riff, a picking drill and the
+   * tune-up are folded into `drill` and `strikes` as they are heard, because
+   * those decide when the activity is *over* and a buffer read at the end
+   * cannot.
    */
   const frames = useRef<HeardChord[]>([]);
-  const notes = useRef<string[]>([]);
   const stepFrames = useRef<Map<string, HeardChord[]>>(new Map());
   const stepNotes = useRef<Map<string, string[]>>(new Map());
   const activityStartedAt = useRef(0);
@@ -142,6 +174,20 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
   const outcomesRef = useRef<ActivityOutcome[]>([]);
   /** Read inside the sampler, which must not close over a render's state. */
   const evidenceRef = useRef<EvidenceState>(EMPTY_EVIDENCE);
+  /** The same, for the two note-driven kinds. */
+  const drillRef = useRef<RiffDrillState | null>(null);
+  const strikesRef = useRef<StrikeState>(EMPTY_STRIKES);
+  /**
+   * The detector's onset buffer, which it mutates in place.
+   *
+   * Held by identity rather than copied: an onset is what tells a re-picked
+   * string from a ringing one, and without it a drill whose next note is the
+   * one still sounding cannot advance at all (docs/NEXT.md 16d).
+   */
+  const onsetsRef = useRef<number[]>(onsets);
+  useEffect(() => {
+    onsetsRef.current = onsets;
+  }, [onsets]);
   /**
    * The sampler calls this rather than `advance` directly.
    *
@@ -202,12 +248,27 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
       const activity = script_?.activities[indexRef.current];
       if (!activity) return;
 
-      if (activity.kind === 'shape' || activity.kind === 'tune') {
-        frames.current.push(latestChord.current);
-        if (latestNote.current) notes.current.push(latestNote.current);
+      const heardNote = latestNote.current;
+      const lastOnset = onsetsRef.current[onsetsRef.current.length - 1] ?? null;
 
-        // Evidence, not elapsed time, ends the activity. A tune-up has no
-        // target chord to match, so it waits for the player to move on.
+      // The tune-up: six strings struck, in whatever order, and on it goes. It
+      // is the one activity that must not ask for a *particular* pitch — a
+      // guitar being out of tune is the reason it is on screen.
+      if (activity.kind === 'tune') {
+        const struck = addStrike(strikesRef.current, heardNote, lastOnset);
+        if (struck !== strikesRef.current) {
+          strikesRef.current = struck;
+          setStrikes(struck);
+        }
+
+        if (isStruckThrough(struck, activity.notes?.length ?? 6)) advanceRef.current();
+        return;
+      }
+
+      if (activity.kind === 'shape') {
+        frames.current.push(latestChord.current);
+
+        // Evidence, not elapsed time, ends the activity.
         const definition_ = definitionFor(activity.skillId);
         const target = definition_ ? targetChordFor(definition_) : null;
         if (!target) return;
@@ -217,6 +278,23 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
         setEvidence(next);
 
         if (isDecided(next)) advanceRef.current();
+        return;
+      }
+
+      // Riffs and picking drills: note by note, with no clock — the drill
+      // String Sniper runs. A picking activity used to carry no notes at all,
+      // so nothing here could ever decide it was over and the only way past it
+      // was the Skip button. It now ends on its last note being played, and a
+      // slow player is waited for rather than marched past.
+      const drill_ = drillRef.current;
+      if (drill_) {
+        const next = hearNote(drill_, heardNote, lastOnset);
+        if (next !== drill_) {
+          drillRef.current = next;
+          setDrill(next);
+        }
+
+        if (isRiffComplete(next)) advanceRef.current();
         return;
       }
 
@@ -263,6 +341,25 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
     return () => window.clearInterval(handle);
   }, [phase]);
 
+  /**
+   * Arms whichever finishing rule the next activity runs on.
+   *
+   * A riff or a picking drill gets the note sequence it is finished by; the
+   * tune-up gets a clean strike count; chord work gets neither, and is decided
+   * by frames of evidence as before.
+   */
+  const armFor = useCallback((activity: Activity | null) => {
+    const drilled =
+      activity && activity.kind !== 'tune' && activity.notes?.length
+        ? startRiff(activity.notes)
+        : null;
+
+    drillRef.current = drilled;
+    setDrill(drilled);
+    strikesRef.current = EMPTY_STRIKES;
+    setStrikes(EMPTY_STRIKES);
+  }, []);
+
   // Built once per sitting, when Play is pressed. Rebuilding it live would mean
   // the session changing shape underneath someone mid-activity.
   const start = useCallback(
@@ -288,7 +385,6 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
       indexRef.current = 0;
       outcomesRef.current = [];
       frames.current = [];
-      notes.current = [];
       stepFrames.current = new Map();
       stepNotes.current = new Map();
       activityStartedAt.current = performance.now();
@@ -299,9 +395,10 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
       setIndex(0);
       setEvidence(EMPTY_EVIDENCE);
       evidenceRef.current = EMPTY_EVIDENCE;
+      armFor(built.activities[0] ?? null);
       setPhase('running');
     },
-    [states, streak, recentAccuracy, minutes, resetDetector, startListening],
+    [armFor, states, streak, recentAccuracy, minutes, resetDetector, startListening],
   );
 
   const progress = script ? progressAt(script, index) : null;
@@ -319,13 +416,34 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
     const definitionForActivity = definitionFor(activity.skillId);
 
     if (activity.kind === 'tune') {
-      const heardAnything = notes.current.length > 0;
+      const struck = strikesRef.current.struck;
       return {
         activityId: activity.id,
         grade: null, // Tuning is not a skill to schedule.
-        detail: heardAnything
-          ? `Heard ${notes.current[notes.current.length - 1]}. Tuned up.`
-          : 'Nothing heard — check the microphone before the next one.',
+        detail:
+          struck.length > 0
+            ? `Heard ${struck.length} string${struck.length === 1 ? '' : 's'}: ${struck.join(' · ')}.`
+            : 'Nothing heard — check the microphone before the next one.',
+      };
+    }
+
+    // A riff or a picking drill, judged by the notes that were actually
+    // played. The same summary and the same grade String Sniper files, so the
+    // two modes cannot drift into disagreeing about the same run.
+    const drill_ = drillRef.current;
+    if (drill_) {
+      const summary = summariseRiff(drill_);
+      const struck = summary.played + summary.wrong;
+
+      return {
+        activityId: activity.id,
+        grade: gradeRiff(summary),
+        detail:
+          struck === 0
+            ? 'Nothing heard for that one.'
+            : `${summary.played} of ${summary.total} in order, ${summary.wrong} stray note${
+                summary.wrong === 1 ? '' : 's'
+              }.`,
       };
     }
 
@@ -390,10 +508,10 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
     setEvidence(EMPTY_EVIDENCE);
     evidenceRef.current = EMPTY_EVIDENCE;
     frames.current = [];
-    notes.current = [];
     stepFrames.current = new Map();
     stepNotes.current = new Map();
     activityStartedAt.current = performance.now();
+    armFor(scriptRef.current.activities[next] ?? null);
 
     if (isFinished(scriptRef.current, next)) {
       const score = scoreSession(outcomesRef.current);
@@ -417,7 +535,7 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
         console.error('[auto] Session log write failed.', error);
       });
     }
-  }, [judge, states, stopListening, user.uid]);
+  }, [armFor, judge, states, stopListening, user.uid]);
 
   useEffect(() => {
     advanceRef.current = advance;
@@ -500,8 +618,13 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
     );
   }
 
-  // How close the current activity is to a verdict. Not time — evidence.
-  const segmentProgress = decisionProgress(evidence);
+  // How close the current activity is to a verdict. Not time — evidence: notes
+  // played for the picked kinds, frames of the right chord for the held ones.
+  const segmentProgress = drill
+    ? Math.min(1, drill.cursor / Math.max(1, drill.notes.length))
+    : activity?.kind === 'tune'
+      ? strikeProgress(strikes, activity.notes?.length ?? 6)
+      : decisionProgress(evidence);
 
   return (
     <section className="card auto auto--playing" data-testid="auto-session">
@@ -542,18 +665,54 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
           {activity?.title}
         </p>
 
-        {(() => {
-          const progression = progressionOf(activity);
-          const riffNotes = progression?.chords.flatMap((step) => step.notes ?? []) ?? [];
-          if (riffNotes.length === 0) return null;
+        {/*
+          The notes, with the cursor on the one being waited for. Showing where
+          the drill has got to is what makes "it moves on by itself" legible —
+          without it, a session that advances silently looks like a session
+          that skipped something.
+        */}
+        {activity?.notes?.length ? (
+          <>
+            <ol className="riffline" data-testid="auto-riffline">
+              {riffPositions(activity.notes).map((position, position_) => {
+                const done =
+                  activity.kind === 'tune'
+                    ? position_ < strikes.struck.length
+                    : position_ < (drill?.cursor ?? 0);
+                const now = !done && (activity.kind === 'tune'
+                  ? position_ === strikes.struck.length
+                  : position_ === (drill?.cursor ?? 0));
 
-          return (
+                return (
+                  <li
+                    key={`${position}-${position_}`}
+                    className={`riffline__note${
+                      done ? ' riffline__note--done' : now ? ' riffline__note--now' : ''
+                    }`}
+                  >
+                    {position}
+                  </li>
+                );
+              })}
+            </ol>
             <p className="auto__riff" data-testid="auto-riff">
-              <span className="auto__riffpositions">{describeRiffPositions(riffNotes)}</span>
               <span className="auto__rifflegend">string:fret · 6 is thickest, 0 is open</span>
             </p>
-          );
-        })()}
+          </>
+        ) : (
+          (() => {
+            const progression = progressionOf(activity);
+            const riffNotes = progression?.chords.flatMap((step) => step.notes ?? []) ?? [];
+            if (riffNotes.length === 0) return null;
+
+            return (
+              <p className="auto__riff" data-testid="auto-riff">
+                <span className="auto__riffpositions">{describeRiffPositions(riffNotes)}</span>
+                <span className="auto__rifflegend">string:fret · 6 is thickest, 0 is open</span>
+              </p>
+            );
+          })()
+        )}
 
         {progressionOf(activity)?.strumming ? (
           <p className="strumming" data-testid="auto-strumming">
@@ -603,7 +762,15 @@ export function AutoSessionPanel({ user, minutes }: AutoSessionPanelProps) {
         </div>
 
         <p className="auto__coaching" data-testid="auto-evidence">
-          {describeEvidence(evidence)}
+          {drill
+            ? isRiffComplete(drill)
+              ? 'Done.'
+              : `Next: ${riffPositions(drill.notes)[drill.cursor] ?? ''}${
+                  expectedNote(drill) ? ` (${expectedNote(drill)})` : ''
+                }`
+            : activity?.kind === 'tune'
+              ? describeStrikes(strikes, activity.notes?.length ?? 6)
+              : describeEvidence(evidence)}
         </p>
 
         {lastDetail ? (

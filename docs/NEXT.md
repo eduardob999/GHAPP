@@ -84,6 +84,34 @@ always the next thing to do.
       music. Done: `src/domain/riffDrill.ts` plus a rebuilt panel — nine riffs,
       each note ticked off as it is heard, no clock.
 
+- [x] **27. The auto session waited on Skip.** Two of its five activity kinds
+      had no way to end. A picking drill carried a title, a duration and a
+      target string — no notes, nothing the sampler could match — so it fell
+      through every branch, never advanced, and was filed as "not heard" when
+      the player finally pressed Skip. The tune-up had the same hole for the
+      opposite reason: it has no target chord, so the evidence path returned
+      early on every frame. The first activity of every session and the whole
+      picking category, both exit-by-Skip.
+      Done 2026-09-10: activities that are *picked* rather than strummed now
+      carry the notes that end them (`Activity.notes`).
+      - **Riffs and picking drills** run the riff drill String Sniper runs —
+        `hearNote` note by note, no clock, ending on the last note played and
+        graded by `gradeRiff`. A picking skill takes its notes from the written
+        riff that practises it where the catalog has one, and otherwise from
+        the strings it names, cycled into `STRIKES_PER_SET` strikes.
+      - **The tune-up** counts strikes instead (`addStrike` in
+        `activityProgress.ts`) and asks nothing about pitch, because a guitar
+        being out of tune is the reason that screen exists. Six strings struck
+        in any order and it moves on.
+      - **This wires the onsets of 16d**, in the one place the React problem
+        recorded there does not arise: the auto session samples on a fixed
+        clock and reads the newest onset directly, so it sees a re-picked
+        string under an unchanged note name without any `onOnset` callback.
+        String Sniper itself still folds from a `useEffect` keyed on
+        `currentNote` and is still unwired — 16d stays open for that panel.
+      - 21 new tests over `pickingNotes`, the strike counter and the rule that
+        matters: **every activity a session builds can end on its own.**
+
 - [x] **22. No timer — the playing drives it.** The auto session advances on a
       countdown: every activity carries `seconds`, and it moves on when the
       clock runs out whether or not a note was played. That makes the timer the

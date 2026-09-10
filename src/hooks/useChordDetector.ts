@@ -160,8 +160,10 @@ export function useChordDetector(): ChordDetectorState {
   const reset = useCallback(() => {
     recentRef.current = [];
     publishedAtRef.current = 0;
-    onsetsRef.current = [];
-    onsetsRef.current = [];
+    // Emptied in place rather than replaced: consumers hold this array by
+    // identity — `onsets` below hands out the ref's own array — and swapping it
+    // for a new one would leave them reading a buffer nothing pushes to again.
+    onsetsRef.current.length = 0;
     setCurrentChord(null);
     setCurrentResult(null);
     setCurrentNote(null);

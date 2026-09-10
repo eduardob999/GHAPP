@@ -425,3 +425,23 @@ describe('riffPositions', () => {
     expect(riffPositions([])).toEqual([]);
   });
 });
+
+describe('hearNote — silence', () => {
+  it('returns the state it was given when nothing was sounding anyway', () => {
+    // Identity, not equality: the auto session samples ten times a second and
+    // re-renders only on a change, so a fresh object per silent frame is a
+    // re-render per silent frame.
+    const state = hearNote(startRiff(['E2', 'A2']), null);
+
+    expect(hearNote(state, null)).toBe(state);
+  });
+
+  it('still clears the last note, so the same string counts when picked again', () => {
+    let state = startRiff(['E2', 'E2']);
+    state = hearNote(state, 'E2');
+    state = hearNote(state, null);
+    state = hearNote(state, 'E2');
+
+    expect(state.cursor).toBe(2);
+  });
+});
