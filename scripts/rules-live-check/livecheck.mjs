@@ -38,6 +38,8 @@ await t('owner ticks her item', true, () => updateDoc(doc(O.db, 'households', hi
 await t('stranger cannot read list items', false, () => getDoc(doc(X.db, 'households', hid, 'listitems', 'i1')));
 await t('carla adds a ledger entry and the owner deletes it', true, async () => { await setDoc(doc(C.db, 'households', hid, 'ledger', 'm1'), { id: 'm1', amount: 100 }); await new Promise(r => setTimeout(r, 1200)); await deleteDoc(doc(O.db, 'households', hid, 'ledger', 'm1')); });
 await t('stranger cannot write the ledger', false, () => setDoc(doc(X.db, 'households', hid, 'ledger', 'm2'), { amount: 1 }));
+await t('carla sends a request', true, () => setDoc(doc(C.db, 'households', hid, 'asks', 'a1'), { id: 'a1', by: C.uid, kind: 'question', text: 'hi', state: 'new' }));
+await t('stranger cannot send a request', false, () => setDoc(doc(X.db, 'households', hid, 'asks', 'a2'), { id: 'a2', text: 'hi' }));
 await t('carla appends to the log', true, () => setDoc(doc(C.db, 'households', hid, 'log', 'e1'), { uid: C.uid, at: 1 }));
 await t('nobody edits the log', false, () => updateDoc(doc(C.db, 'households', hid, 'log', 'e1'), { at: 2 }));
 await t("owner cannot delete carla's log entry", false, () => deleteDoc(doc(O.db, 'households', hid, 'log', 'e1')));
