@@ -19,9 +19,8 @@ service cloud.firestore {
       }
     }
 
-    // NOT RELEASED YET (2026-11-20): written for Nexo Kaji. The live release is still rulesets/0ef397f2-7b3b-4a36-a1f0-0f7b5f9ee589 (this
-    // file's older users-only rules). Releasing this one changes the shared production project and needs Eduardo's go-ahead. Delete this
-    // note when it is released.
+    // Released 2026-11-20 with his go-ahead. The previous release was rulesets/0ef397f2-7b3b-4a36-a1f0-0f7b5f9ee589 (users-only rules); to roll back,
+    // release that ruleset again. The household rules were exercised against the live project with throwaway users before use.
     // Households (Nexo Kaji): a small shared space for the people who live together. `members` maps uid to a role
     // ('owner' or 'member'). Only members read or write inside it. The owner adds people by writing an invite keyed by the
     // invitee's verified Google address; the invitee then adds only their own uid, with the role the invite names.
@@ -44,8 +43,10 @@ service cloud.firestore {
         || (
           request.auth.token.email_verified == true
           && exists(/databases/$(database)/documents/households/$(hid)/invites/$(request.auth.token.email.lower()))
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'names', 'langs'])
           && request.resource.data.members.diff(resource.data.members).affectedKeys().hasOnly([request.auth.uid])
+          && request.resource.data.get('names', {}).diff(resource.data.get('names', {})).affectedKeys().hasOnly([request.auth.uid])
+          && request.resource.data.get('langs', {}).diff(resource.data.get('langs', {})).affectedKeys().hasOnly([request.auth.uid])
           && request.resource.data.members[request.auth.uid]
              == get(/databases/$(database)/documents/households/$(hid)/invites/$(request.auth.token.email.lower())).data.role
         ));
