@@ -76,7 +76,7 @@ service cloud.firestore {
       }
       // Everything else in the household (chores, survey, plan, settings, away, swaps) is editable by both of them.
       match /{sub}/{id} {
-        allow read, write: if isMember(hid) && sub in ['tasks', 'survey', 'plan', 'settings', 'away', 'swaps', 'requests'];
+        allow read, write: if isMember(hid) && sub in ['tasks', 'survey', 'plan', 'settings', 'away', 'swaps', 'requests', 'lists', 'listitems'];
       }
     }
 
