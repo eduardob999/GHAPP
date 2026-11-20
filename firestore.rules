@@ -19,6 +19,62 @@ service cloud.firestore {
       }
     }
 
+    // NOT RELEASED YET (2026-11-20): written for Nexo Kaji. A ruleset built from this file exists (rulesets/e39b8131-5233-4664-8130-427eae0e5a04)
+    // but the live release is still rulesets/0ef397f2-7b3b-4a36-a1f0-0f7b5f9ee589. Releasing it changes the shared production project and
+    // needs Eduardo's go-ahead. Delete this note when it is released.
+    // Households (Nexo Kaji): a small shared space for the people who live together. `members` maps uid to a role
+    // ('owner' or 'member'). Only members read or write inside it. The owner adds people by writing an invite keyed by the
+    // invitee's verified Google address; the invitee then adds only their own uid, with the role the invite names.
+    function isMember(hid) {
+      return request.auth != null
+        && request.auth.uid in get(/databases/$(database)/documents/households/$(hid)).data.members;
+    }
+    function isOwner(hid) {
+      return request.auth != null
+        && get(/databases/$(database)/documents/households/$(hid)).data.members[request.auth.uid] == 'owner';
+    }
+
+    match /households/{hid} {
+      allow read: if request.auth != null && request.auth.uid in resource.data.members;
+      allow create: if request.auth != null
+        && request.resource.data.members.keys().hasOnly([request.auth.uid])
+        && request.resource.data.members[request.auth.uid] == 'owner';
+      allow update: if request.auth != null && (
+        resource.data.members[request.auth.uid] == 'owner'
+        || (
+          request.auth.token.email_verified == true
+          && exists(/databases/$(database)/documents/households/$(hid)/invites/$(request.auth.token.email.lower()))
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members'])
+          && request.resource.data.members.diff(resource.data.members).affectedKeys().hasOnly([request.auth.uid])
+          && request.resource.data.members[request.auth.uid]
+             == get(/databases/$(database)/documents/households/$(hid)/invites/$(request.auth.token.email.lower())).data.role
+        ));
+      allow delete: if false;
+
+      // Invites: the owner writes them; the invitee can read their own to see it exists.
+      match /invites/{email} {
+        allow read: if request.auth != null && (isOwner(hid) || request.auth.token.email.lower() == email);
+        allow create, update, delete: if isOwner(hid) && request.resource.data.role in ['member'];
+        allow delete: if isOwner(hid);
+      }
+
+      // The log is append-only: a member may add an event and may take back one they made themselves. Nothing rewrites it.
+      match /log/{id} {
+        allow read: if isMember(hid);
+        allow create: if isMember(hid);
+        allow delete: if isMember(hid) && resource.data.uid == request.auth.uid;
+      }
+      // The change history of the setup is append-only too.
+      match /history/{id} {
+        allow read: if isMember(hid);
+        allow create: if isMember(hid);
+      }
+      // Everything else in the household (chores, survey, plan, settings, away, swaps) is editable by both of them.
+      match /{sub}/{id} {
+        allow read, write: if isMember(hid) && sub in ['tasks', 'survey', 'plan', 'settings', 'away', 'swaps', 'requests'];
+      }
+    }
+
     // Anything not matched above is denied.
   }
 }
