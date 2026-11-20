@@ -19,9 +19,9 @@ service cloud.firestore {
       }
     }
 
-    // NOT RELEASED YET (2026-11-20): written for Nexo Kaji. A ruleset built from this file exists (rulesets/e39b8131-5233-4664-8130-427eae0e5a04)
-    // but the live release is still rulesets/0ef397f2-7b3b-4a36-a1f0-0f7b5f9ee589. Releasing it changes the shared production project and
-    // needs Eduardo's go-ahead. Delete this note when it is released.
+    // NOT RELEASED YET (2026-11-20): written for Nexo Kaji. The live release is still rulesets/0ef397f2-7b3b-4a36-a1f0-0f7b5f9ee589 (this
+    // file's older users-only rules). Releasing this one changes the shared production project and needs Eduardo's go-ahead. Delete this
+    // note when it is released.
     // Households (Nexo Kaji): a small shared space for the people who live together. `members` maps uid to a role
     // ('owner' or 'member'). Only members read or write inside it. The owner adds people by writing an invite keyed by the
     // invitee's verified Google address; the invitee then adds only their own uid, with the role the invite names.
@@ -68,6 +68,10 @@ service cloud.firestore {
       match /history/{id} {
         allow read: if isMember(hid);
         allow create: if isMember(hid);
+      }
+      // Calendar busy times are written by the Nexo service with the admin key; members only read them.
+      match /busy/{id} {
+        allow read: if isMember(hid);
       }
       // Everything else in the household (chores, survey, plan, settings, away, swaps) is editable by both of them.
       match /{sub}/{id} {
