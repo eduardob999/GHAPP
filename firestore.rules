@@ -59,14 +59,15 @@ service cloud.firestore {
         allow delete: if isOwner(hid);
       }
 
-      // The log is append-only: a member may add an event, take back one they made, and later fill in the ratings and comment of their own. Nothing else is rewritten.
+      // The log is append-only: a member may add an event, take back one they made, and later fill in the ratings, comment and minutes of their own. Nothing else is rewritten.
       match /log/{id} {
         allow read: if isMember(hid);
         allow create: if isMember(hid);
         allow delete: if isMember(hid) && resource.data.uid == request.auth.uid;
-        // The doer may add or change how it went, later: the ratings and the comment, nothing else.
+        // The doer may add or change how it went, later: the ratings, the comment and the minutes, nothing else.
         allow update: if isMember(hid) && resource.data.uid == request.auth.uid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['effort', 'dislike', 'enjoyment', 'note', 'ratedAt']);
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['effort', 'dislike', 'enjoyment', 'note', 'ratedAt', 'minutes'])
+          && (!('minutes' in request.resource.data) || (request.resource.data.minutes is number && request.resource.data.minutes >= 1 && request.resource.data.minutes <= 1440));
       }
       // The change history of the setup is append-only too.
       match /history/{id} {
